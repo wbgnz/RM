@@ -17,16 +17,74 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 24px;
         }
+        .spinner {
+            border-color: rgba(255, 255, 255, 0.2);
+            border-top-color: #f5f5f7;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
     <main class="w-full max-w-md mx-auto z-10">
         <div class="status-container p-8 sm:p-10 text-center">
-            <svg class="w-20 h-20 text-yellow-500 mx-auto mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <div id="icon-pending">
+                <svg class="w-20 h-20 text-yellow-500 mx-auto mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
             <h1 class="text-3xl font-bold text-white">Pagamento Pendente</h1>
-            <p class="text-lg text-gray-400 mt-3">Estamos a aguardar a confirmação do seu pagamento.</p>
-            <p class="text-sm text-gray-500 mt-6">Receberá a confirmação final por e-mail assim que o processo for concluído.</p>
+            <p id="status-message" class="text-lg text-gray-400 mt-3">Estamos a aguardar a confirmação do seu pagamento.</p>
+            
+            <div class="mt-6 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                <p class="text-sm text-yellow-300"><strong>Pagou com Pix?</strong> A confirmação é quase instantânea. Pode aguardar alguns segundos ou fechar esta janela. A sua inscrição será confirmada por e-mail.</p>
+            </div>
+            
+            <div id="checking-status" class="hidden mt-6 flex items-center justify-center">
+                <div class="spinner w-5 h-5 rounded-full mr-3"></div>
+                <span class="text-gray-400">A verificar o estado do pagamento...</span>
+            </div>
         </div>
     </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            // O Mercado Pago envia o nosso ID como 'external_reference'
+            const inscriptionId = params.get('external_reference');
+
+            if (inscriptionId) {
+                const checkingStatusDiv = document.getElementById('checking-status');
+                checkingStatusDiv.classList.remove('hidden');
+
+                let attempts = 0;
+                const maxAttempts = 40; // Tenta durante 2 minutos (40 * 3 segundos)
+
+                const intervalId = setInterval(async () => {
+                    if (attempts >= maxAttempts) {
+                        clearInterval(intervalId);
+                        checkingStatusDiv.innerHTML = '<span class="text-red-500">A verificação demorou demasiado tempo. Por favor, verifique o seu e-mail.</span>';
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`/api/check-status?id=${inscriptionId}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.status === 'paid') {
+                                clearInterval(intervalId);
+                                // Redireciona para a página de sucesso
+                                window.location.href = '/sucesso.html';
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Erro ao verificar o estado:', error);
+                    }
+                    
+                    attempts++;
+                }, 3000); // Verifica a cada 3 segundos
+            }
+        });
+    </script>
 </body>
 </html>
