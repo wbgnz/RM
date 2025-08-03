@@ -1,27 +1,21 @@
 {
-  "name": "api",
+  "name": "formulario-resenha",
   "version": "1.0.0",
-<<<<<<< HEAD
-  "main": "create-preference.js",
-=======
-  "description": "",
-  "main": "create-preference.js",
+  "description": "Formulário de inscrição para o evento Resenha Music",
+  "main": "index.js",
   "type": "module",
->>>>>>> 98268b69e8004745affa1341646c76f3f3e2f837
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": [
+    "resenha",
+    "music",
+    "inscricao"
+  ],
   "author": "",
   "license": "ISC",
-<<<<<<< HEAD
-  "description": "",
   "dependencies": {
-    "firebase-admin": "^13.4.0",
-    "mercadopago": "^2.8.0"
-=======
-  "dependencies": {
+    "firebase-admin": "^12.1.1",
     "mercadopago": "^2.0.10"
->>>>>>> 98268b69e8004745affa1341646c76f3f3e2f837
   }
-}
+} 
