@@ -27,8 +27,8 @@ try {
 
 // --- ATUALIZADO: Preços de teste ---
 const TICKET_PRICES = {
-    pista: 0.01,
-    vip: 0.02,
+    pista: 1,
+    vip: 2,
 };
 // ------------------------------------
 
