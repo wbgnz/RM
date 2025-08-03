@@ -25,10 +25,12 @@ try {
 }
 // -----------------------------------------
 
+// --- ATUALIZADO: Preços de teste ---
 const TICKET_PRICES = {
     pista: 0.01,
     vip: 0.02,
 };
+// ------------------------------------
 
 export default async function handler(request, response) {
     // Verifica se o Firebase foi inicializado corretamente
