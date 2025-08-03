@@ -21,7 +21,6 @@
             overflow-x: hidden;
         }
 
-        /* Canvas para as partículas de fundo */
         #particle-canvas {
             position: fixed;
             top: 0;
@@ -98,7 +97,7 @@
             <!-- Cabeçalho -->
             <div class="text-center mb-10">
                 <h1 class="text-4xl sm:text-5xl font-bold text-white tracking-tight">Resenha Music</h1>
-                <p class="text-lg text-gray-400 mt-3">Preencha seus dados para garantir sua vaga.</p>
+                <p class="text-lg text-gray-400 mt-3">Preencha os seus dados para garantir a sua vaga.</p>
             </div>
 
             <!-- Formulário -->
@@ -138,17 +137,17 @@
                 <div id="additional-participants-container" class="space-y-8 mt-8"></div>
 
                 <div class="mt-8">
-                    <h3 class="text-sm font-medium text-gray-400 mb-2">Tipo de Ingresso</h3>
+                    <h3 class="text-sm font-medium text-gray-400 mb-2">Tipo de Bilhete</h3>
                     <div class="segmented-control">
                         <input type="radio" name="ticket_type" id="pista" value="pista" class="hidden ticket-radio" checked>
                         <label for="pista" class="segmented-label">
                             <span class="font-semibold">Pista</span>
-                            <span class="block text-xs">R$ 100,00</span>
+                            <span class="block text-xs">R$ 0,01</span>
                         </label>
                         <input type="radio" name="ticket_type" id="vip" value="vip" class="hidden ticket-radio">
                         <label for="vip" class="segmented-label">
                             <span class="font-semibold">VIP</span>
-                            <span class="block text-xs">R$ 150,00</span>
+                            <span class="block text-xs">R$ 0,02</span>
                         </label>
                     </div>
                 </div>
@@ -164,7 +163,7 @@
                     </div>
                     <div class="text-right">
                         <span class="text-sm text-gray-400 block">Total</span>
-                        <span id="total-price" class="text-3xl font-bold text-white">R$ 100,00</span>
+                        <span id="total-price" class="text-3xl font-bold text-white">R$ 0,01</span>
                     </div>
                 </div>
 
@@ -175,7 +174,7 @@
                 </div>
                  <div id="loading-overlay" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex-col items-center justify-center z-50">
                     <div class="w-12 h-12 border-4 border-gray-500 border-t-white rounded-full animate-spin"></div>
-                    <p class="text-white text-lg mt-4">Processando...</p>
+                    <p class="text-white text-lg mt-4">A processar...</p>
                 </div>
             </form>
         </div>
@@ -183,7 +182,6 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // --- Lógica do Fundo de Partículas ---
             const canvas = document.getElementById('particle-canvas');
             const ctx = canvas.getContext('2d');
             canvas.width = window.innerWidth;
@@ -230,7 +228,6 @@
                         this.directionY = -this.directionY;
                     }
 
-                    // Interação com o mouse
                     let dx = mouse.x - this.x;
                     let dy = mouse.y - this.y;
                     let distance = Math.sqrt(dx * dx + dy * dy);
@@ -286,7 +283,6 @@
             initParticles();
             animateParticles();
 
-            // --- Lógica do Formulário ---
             const form = document.getElementById('inscription-form');
             const ticketTypeRadios = document.querySelectorAll('input[name="ticket_type"]');
             const quantitySpan = document.getElementById('quantity');
@@ -296,10 +292,12 @@
             const loadingOverlay = document.getElementById('loading-overlay');
             const participantsContainer = document.getElementById('additional-participants-container');
 
+            // --- ATUALIZADO: Preços de teste no frontend ---
             const ticketPrices = {
-                pista: 100,
-                vip: 150
+                pista: 0.01,
+                vip: 0.02
             };
+            // ---------------------------------------------
 
             let currentQuantity = 1;
 
@@ -438,7 +436,6 @@
                     const responseData = await response.json();
 
                     if (!response.ok) {
-                        // Se a resposta não for OK, lança um erro com os detalhes
                         throw new Error(responseData.details || responseData.error || 'Falha na comunicação com o servidor');
                     }
 
@@ -449,7 +446,6 @@
                     }
                 } catch (error) {
                     console.error("Erro ao processar pagamento:", error);
-                    // Exibe a mensagem de erro detalhada para o usuário
                     alert(`Ocorreu um erro: ${error.message}`);
                     loadingOverlay.classList.add('hidden');
                     loadingOverlay.classList.remove('flex');
