@@ -26,9 +26,7 @@ try {
 // -----------------------------------------
 
 export default async function handler(request, response) {
-    // Verifica se o Firebase foi inicializado corretamente
     if (firebaseInitializationError) {
-        // Mesmo com erro, respondemos 200 para o MP não continuar a enviar
         console.error("Webhook não pode ser processado devido a erro de inicialização do Firebase.");
         return response.status(200).send('Erro interno do servidor ao processar webhook.');
     }
@@ -55,15 +53,18 @@ export default async function handler(request, response) {
             if (paymentInfo && paymentInfo.external_reference) {
                 const inscriptionId = paymentInfo.external_reference;
                 const paymentStatus = paymentInfo.status;
+                // NOVO: Captura o meio de pagamento (ex: 'pix', 'visa', 'master')
+                const paymentMethod = paymentInfo.payment_method_id || 'N/A';
 
                 if (paymentStatus === 'approved') {
                     const inscriptionRef = db.collection('inscriptions').doc(inscriptionId);
                     await inscriptionRef.update({
                         paymentStatus: 'paid',
                         mercadoPagoId: data.id,
+                        paymentMethod: paymentMethod, // Salva o meio de pagamento
                         updatedAt: new Date().toISOString()
                     });
-                    console.log(`Inscrição ${inscriptionId} atualizada para paga.`);
+                    console.log(`Inscrição ${inscriptionId} atualizada para paga via ${paymentMethod}.`);
                 }
             }
         } catch (error) {
