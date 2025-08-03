@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acesso ao Painel - Resenha Music</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #000000;
+            color: #f5f5f7;
+        }
+        .login-container {
+            background-color: #1c1c1e;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+        }
+        .form-input {
+            background-color: #333336;
+            border: 1px solid #4a4a4f;
+            color: #f5f5f7;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            border-radius: 12px;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #0a84ff;
+            box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.3);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <main class="w-full max-w-sm mx-auto z-10">
+        <div class="login-container p-8 sm:p-10 shadow-2xl">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-white tracking-tight">Painel Administrativo</h1>
+                <p class="text-md text-gray-400 mt-2">Resenha Music</p>
+            </div>
+
+            <form id="login-form">
+                <div>
+                    <label for="password" class="block mb-2 text-sm font-medium text-gray-400">Senha de Acesso</label>
+                    <input type="password" id="password" name="password" class="form-input w-full p-3" required>
+                </div>
+                <p id="error-message" class="text-red-500 text-sm mt-2 hidden"></p>
+                <div class="mt-8">
+                    <button type="submit" id="submit-button" class="w-full bg-[#0a84ff] text-white font-semibold text-lg py-3 rounded-xl shadow-lg hover:bg-[#0077ed] transition-all duration-300">
+                        Entrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('login-form');
+            const passwordInput = document.getElementById('password');
+            const errorMessage = document.getElementById('error-message');
+            const submitButton = document.getElementById('submit-button');
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                errorMessage.classList.add('hidden');
+                submitButton.disabled = true;
+                submitButton.textContent = 'A verificar...';
+
+                try {
+                    const response = await fetch('/api/admin-login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password: passwordInput.value })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        // Salva um token de sessão para manter o utilizador logado
+                        sessionStorage.setItem('admin-auth-token', data.token);
+                        // Redireciona para a página do painel
+                        window.location.href = '/admin.html';
+                    } else {
+                        throw new Error(data.error || 'Senha incorreta');
+                    }
+                } catch (error) {
+                    errorMessage.textContent = error.message;
+                    errorMessage.classList.remove('hidden');
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Entrar';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
