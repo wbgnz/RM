@@ -2,24 +2,45 @@ import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
-// --- Configuração do Firebase Admin ---
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-if (!getApps().length) {
-  initializeApp({
-    credential: cert(serviceAccount)
-  });
+// --- Configuração Robusta do Firebase Admin ---
+let db;
+let firebaseInitializationError = null;
+
+try {
+    const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (!serviceAccountString) {
+        throw new Error("A chave da conta de serviço do Firebase não está configurada nas variáveis de ambiente.");
+    }
+    const serviceAccount = JSON.parse(serviceAccountString);
+
+    if (!getApps().length) {
+      initializeApp({
+        credential: cert(serviceAccount)
+      });
+    }
+    db = getFirestore();
+} catch (e) {
+    console.error("Erro na Inicialização do Firebase Admin (Webhook):", e);
+    firebaseInitializationError = e.message;
 }
-const db = getFirestore();
 // -----------------------------------------
 
 export default async function handler(request, response) {
+    // Verifica se o Firebase foi inicializado corretamente
+    if (firebaseInitializationError) {
+        // Mesmo com erro, respondemos 200 para o MP não continuar a enviar
+        console.error("Webhook não pode ser processado devido a erro de inicialização do Firebase.");
+        return response.status(200).send('Erro interno do servidor ao processar webhook.');
+    }
+
     if (request.method !== 'POST') {
-        return response.status(405).json({ error: 'Method not allowed' });
+        return response.status(405).json({ error: 'Método não permitido' });
     }
 
     const accessToken = process.env.MP_ACCESS_TOKEN;
     if (!accessToken) {
-        return response.status(500).json({ error: 'Mercado Pago access token not configured' });
+        console.error("Webhook não pode ser processado: Chave do MP em falta.");
+        return response.status(200).send('Erro de configuração do servidor.');
     }
 
     const client = new MercadoPagoConfig({ accessToken });
@@ -27,16 +48,14 @@ export default async function handler(request, response) {
 
     const { type, data } = request.body;
 
-    // Verificamos se é uma notificação de pagamento
     if (type === 'payment') {
         try {
             const paymentInfo = await payment.get({ id: data.id });
             
             if (paymentInfo && paymentInfo.external_reference) {
                 const inscriptionId = paymentInfo.external_reference;
-                const paymentStatus = paymentInfo.status; // ex: "approved", "rejected"
+                const paymentStatus = paymentInfo.status;
 
-                // Se o pagamento foi aprovado, atualizamos o status no Firestore
                 if (paymentStatus === 'approved') {
                     const inscriptionRef = db.collection('inscriptions').doc(inscriptionId);
                     await inscriptionRef.update({
@@ -44,16 +63,14 @@ export default async function handler(request, response) {
                         mercadoPagoId: data.id,
                         updatedAt: new Date().toISOString()
                     });
-                    console.log(`Inscription ${inscriptionId} updated to paid.`);
+                    console.log(`Inscrição ${inscriptionId} atualizada para paga.`);
                 }
             }
         } catch (error) {
-            console.error('Error processing webhook:', error);
-            // Mesmo com erro, retornamos 200 para o MP não continuar enviando
-            return response.status(200).send('Webhook processed with error.');
+            console.error('Erro ao processar webhook:', error);
+            return response.status(200).send('Webhook processado com erro.');
         }
     }
 
-    // Responde ao Mercado Pago que a notificação foi recebida com sucesso
-    response.status(200).send('Webhook received.');
+    response.status(200).send('Webhook recebido.');
 }
