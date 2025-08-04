@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>O seu Bilhete - Resenha Music</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -21,13 +22,13 @@
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
     <main id="ticket-content" class="w-full max-w-sm mx-auto z-10 hidden">
-        <div class="ticket-container p-8 text-center">
+        <div id="ticket-to-download" class="ticket-container p-8 text-center">
             <img src="https://raw.githubusercontent.com/wbgnz/BDIMG/main/resenha.jpeg" alt="Logo Resenha Music" class="h-12 mx-auto mb-6">
             <h1 class="text-2xl font-bold text-white" id="participant-name">Carregando...</h1>
             <p class="text-md text-gray-400 mt-1">Titular do Bilhete</p>
 
             <div class="my-8">
-                <img id="qr-code" src="" alt="QR Code do Bilhete" class="w-full max-w-xs mx-auto rounded-lg">
+                <img id="qr-code" src="" alt="QR Code do Bilhete" class="w-full max-w-xs mx-auto rounded-lg bg-white p-2">
             </div>
 
             <div class="flex justify-around text-center border-t border-gray-700 pt-6">
@@ -40,6 +41,12 @@
                     <span id="quantity" class="font-bold text-lg text-white">...</span>
                 </div>
             </div>
+        </div>
+
+        <div class="mt-6 text-center">
+            <button id="download-btn" class="bg-[#0a84ff] text-white font-semibold px-6 py-3 rounded-xl hover:bg-[#0077ed] transition-all">
+                Guardar Bilhete (JPG)
+            </button>
         </div>
     </main>
     <div id="loading" class="text-center">
@@ -57,6 +64,8 @@
             const loadingDiv = document.getElementById('loading');
             const errorDiv = document.getElementById('error');
             const ticketContentDiv = document.getElementById('ticket-content');
+            const downloadBtn = document.getElementById('download-btn');
+            const ticketToDownload = document.getElementById('ticket-to-download');
 
             if (!inscriptionId) {
                 loadingDiv.classList.add('hidden');
@@ -73,13 +82,33 @@
                     throw new Error(data.error || 'Falha ao buscar os dados do bilhete.');
                 }
 
-                document.getElementById('participant-name').textContent = data.participantName;
+                const participantName = data.participantName;
+                document.getElementById('participant-name').textContent = participantName;
                 document.getElementById('ticket-type').textContent = data.ticketType;
                 document.getElementById('quantity').textContent = data.quantity;
                 document.getElementById('qr-code').src = data.qrCodeDataURL;
 
                 loadingDiv.classList.add('hidden');
                 ticketContentDiv.classList.remove('hidden');
+
+                // Lógica do botão de download
+                downloadBtn.addEventListener('click', () => {
+                    downloadBtn.textContent = 'A gerar imagem...';
+                    downloadBtn.disabled = true;
+
+                    html2canvas(ticketToDownload, { 
+                        backgroundColor: '#1c1c1e', // Garante que o fundo da imagem é o mesmo do bilhete
+                        scale: 2 // Aumenta a resolução da imagem
+                    }).then(canvas => {
+                        const link = document.createElement('a');
+                        link.download = `bilhete-resenha-music-${participantName.replace(/\s/g, '-')}.jpg`;
+                        link.href = canvas.toDataURL('image/jpeg', 0.9); // Converte para JPG com 90% de qualidade
+                        link.click();
+                        
+                        downloadBtn.textContent = 'Guardar Bilhete (JPG)';
+                        downloadBtn.disabled = false;
+                    });
+                });
 
             } catch (err) {
                 console.error(err);
