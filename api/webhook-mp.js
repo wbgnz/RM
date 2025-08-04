@@ -53,18 +53,41 @@ export default async function handler(request, response) {
             if (paymentInfo && paymentInfo.external_reference) {
                 const inscriptionId = paymentInfo.external_reference;
                 const paymentStatus = paymentInfo.status;
-                // NOVO: Captura o meio de pagamento (ex: 'pix', 'visa', 'master')
                 const paymentMethod = paymentInfo.payment_method_id || 'N/A';
+                const payerEmail = paymentInfo.payer?.email; // E-mail do pagador
 
                 if (paymentStatus === 'approved') {
-                    const inscriptionRef = db.collection('inscriptions').doc(inscriptionId);
-                    await inscriptionRef.update({
+                    const inscriptionsRef = db.collection('inscriptions');
+                    
+                    // Atualiza a inscrição aprovada para "paga"
+                    const approvedDocRef = inscriptionsRef.doc(inscriptionId);
+                    await approvedDocRef.update({
                         paymentStatus: 'paid',
                         mercadoPagoId: data.id,
-                        paymentMethod: paymentMethod, // Salva o meio de pagamento
+                        paymentMethod: paymentMethod,
                         updatedAt: new Date().toISOString()
                     });
                     console.log(`Inscrição ${inscriptionId} atualizada para paga via ${paymentMethod}.`);
+
+                    // NOVO: Procura e apaga outras inscrições pendentes do mesmo utilizador
+                    if (payerEmail) {
+                        const querySnapshot = await inscriptionsRef
+                            .where('mainParticipant.email', '==', payerEmail)
+                            .where('paymentStatus', '==', 'pending')
+                            .get();
+                        
+                        if (!querySnapshot.empty) {
+                            const batch = db.batch();
+                            querySnapshot.forEach(doc => {
+                                // Garante que não apaga a que acabámos de aprovar
+                                if (doc.id !== inscriptionId) {
+                                    batch.delete(doc.ref);
+                                    console.log(`A apagar inscrição pendente duplicada: ${doc.id}`);
+                                }
+                            });
+                            await batch.commit();
+                        }
+                    }
                 }
             }
         } catch (error) {
