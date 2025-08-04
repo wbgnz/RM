@@ -101,14 +101,21 @@
                     </div>
                 </section>
 
-                <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <!-- CORRIGIDO: Secção de gráficos reorganizada para incluir o gráfico em falta -->
+                <section class="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
+                    <div class="glass-card p-6 lg:col-span-2">
+                        <h3 class="text-lg font-semibold text-white mb-4">Estado das Inscrições</h3>
+                        <canvas id="status-chart"></canvas>
+                    </div>
+                    <div class="glass-card p-6 lg:col-span-3">
+                        <h3 class="text-lg font-semibold text-white mb-4">Tipos de Bilhete (Pagos)</h3>
+                        <canvas id="ticket-chart"></canvas>
+                    </div>
+                </section>
+                <section class="grid grid-cols-1 gap-6 mb-8">
                     <div class="glass-card p-6">
                         <h3 class="text-lg font-semibold text-white mb-4">Distribuição Geográfica (Pagos)</h3>
                         <canvas id="geo-chart"></canvas>
-                    </div>
-                    <div class="glass-card p-6">
-                        <h3 class="text-lg font-semibold text-white mb-4">Tipos de Bilhete (Pagos)</h3>
-                        <canvas id="ticket-chart"></canvas>
                     </div>
                 </section>
             </div>
@@ -152,13 +159,13 @@
 
             const authToken = sessionStorage.getItem('admin-auth-token');
             if (!authToken) {
-                window.location.href = 'login.html'; // CORRIGIDO
+                window.location.href = 'login.html';
                 return;
             }
 
             logoutButton.addEventListener('click', () => {
                 sessionStorage.removeItem('admin-auth-token');
-                window.location.href = 'login.html'; // CORRIGIDO
+                window.location.href = 'login.html';
             });
 
             tabDashboard.addEventListener('click', () => {
