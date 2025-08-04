@@ -76,6 +76,7 @@ export default async function handler(request, response) {
 
         const result = await preference.create({
             body: {
+                statement_descriptor: "Resenha Music", // Descrição na fatura do cartão
                 items: [
                     {
                         id: ticket_type, // ID do item (ex: 'pista' ou 'vip')
