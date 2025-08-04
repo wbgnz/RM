@@ -31,7 +31,6 @@ const TICKET_PRICES = {
 };
 
 export default async function handler(request, response) {
-    // Verifica se o Firebase foi inicializado corretamente
     if (firebaseInitializationError) {
         return response.status(500).json({ error: 'Falha na inicialização do servidor', details: firebaseInitializationError });
     }
@@ -59,6 +58,11 @@ export default async function handler(request, response) {
             return response.status(400).json({ error: 'Tipo de bilhete inválido' });
         }
 
+        // NOVO: Separa o nome e o apelido do comprador
+        const nameParts = mainParticipant.name.trim().split(' ');
+        const firstName = nameParts.shift();
+        const lastName = nameParts.join(' ') || firstName; // Garante que há um apelido, mesmo que seja o nome
+
         const inscriptionRef = await db.collection('inscriptions').add({
             mainParticipant,
             ticket_type,
@@ -74,14 +78,18 @@ export default async function handler(request, response) {
             body: {
                 items: [
                     {
+                        id: ticket_type, // ID do item (ex: 'pista' ou 'vip')
                         title: `Bilhete ${ticket_type.toUpperCase()} - Resenha Music`,
+                        description: `Bilhete de acesso ao evento Resenha Music (${ticket_type})`, // Descrição do item
+                        category_id: 'tickets', // Categoria do item
                         quantity: Number(quantity),
                         unit_price: unit_price,
                         currency_id: 'BRL',
                     },
                 ],
                 payer: {
-                    name: mainParticipant.name,
+                    name: firstName,
+                    surname: lastName, // Apelido do comprador
                     email: mainParticipant.email,
                     identification: {
                         type: 'CPF',
