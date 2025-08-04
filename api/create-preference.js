@@ -2,21 +2,17 @@ import { MercadoPagoConfig, Preference } from 'mercadopago';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
-// --- Configuração Robusta do Firebase Admin ---
+// --- Configuração do Firebase Admin ---
 let db;
 let firebaseInitializationError = null;
-
 try {
     const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     if (!serviceAccountString) {
-        throw new Error("A chave da conta de serviço do Firebase não está configurada nas variáveis de ambiente.");
+        throw new Error("A chave da conta de serviço do Firebase não está configurada.");
     }
     const serviceAccount = JSON.parse(serviceAccountString);
-
     if (!getApps().length) {
-      initializeApp({
-        credential: cert(serviceAccount)
-      });
+      initializeApp({ credential: cert(serviceAccount) });
     }
     db = getFirestore();
 } catch (e) {
@@ -34,7 +30,6 @@ export default async function handler(request, response) {
     if (firebaseInitializationError) {
         return response.status(500).json({ error: 'Falha na inicialização do servidor', details: firebaseInitializationError });
     }
-
     if (request.method !== 'POST') {
         return response.status(405).json({ error: 'Método não permitido' });
     }
@@ -48,7 +43,7 @@ export default async function handler(request, response) {
     const preference = new Preference(client);
 
     try {
-        const { mainParticipant, ticket_type, quantity } = request.body;
+        const { mainParticipant, additionalParticipants, ticket_type, quantity } = request.body;
         if (!mainParticipant || !ticket_type || !quantity) {
             return response.status(400).json({ error: 'Faltam dados obrigatórios' });
         }
@@ -58,12 +53,37 @@ export default async function handler(request, response) {
             return response.status(400).json({ error: 'Tipo de bilhete inválido' });
         }
 
-        // NOVO: Separa o nome e o apelido do comprador
         const nameParts = mainParticipant.name.trim().split(' ');
         const firstName = nameParts.shift();
-        const lastName = nameParts.join(' ') || firstName; // Garante que há um apelido, mesmo que seja o nome
+        const lastName = nameParts.join(' ') || firstName;
 
-        const inscriptionRef = await db.collection('inscriptions').add({
+        // 1. Cria o documento principal da inscrição
+        const inscriptionRef = db.collection('inscriptions').doc();
+        const inscriptionId = inscriptionRef.id;
+        
+        // 2. Cria um "batch" para salvar todos os bilhetes de uma só vez
+        const batch = db.batch();
+
+        // Adiciona o bilhete do comprador principal
+        const mainTicketRef = inscriptionRef.collection('tickets').doc();
+        batch.set(mainTicketRef, {
+            participantName: mainParticipant.name,
+            ticketType: ticket_type,
+            status: 'pending'
+        });
+
+        // Adiciona os bilhetes dos participantes adicionais
+        additionalParticipants.forEach(participant => {
+            const additionalTicketRef = inscriptionRef.collection('tickets').doc();
+            batch.set(additionalTicketRef, {
+                participantName: participant.name,
+                ticketType: ticket_type,
+                status: 'pending'
+            });
+        });
+
+        // Salva o documento principal
+        batch.set(inscriptionRef, {
             mainParticipant,
             ticket_type,
             quantity,
@@ -72,25 +92,24 @@ export default async function handler(request, response) {
             createdAt: new Date().toISOString(),
         });
 
-        const inscriptionId = inscriptionRef.id;
+        // Executa todas as operações de uma só vez
+        await batch.commit();
 
         const result = await preference.create({
             body: {
-                statement_descriptor: "Resenha Music", // Descrição na fatura do cartão
-                items: [
-                    {
-                        id: ticket_type, // ID do item (ex: 'pista' ou 'vip')
-                        title: `Bilhete ${ticket_type.toUpperCase()} - Resenha Music`,
-                        description: `Bilhete de acesso ao evento Resenha Music (${ticket_type})`, // Descrição do item
-                        category_id: 'tickets', // Categoria do item
-                        quantity: Number(quantity),
-                        unit_price: unit_price,
-                        currency_id: 'BRL',
-                    },
-                ],
+                statement_descriptor: "Resenha Music",
+                items: [{
+                    id: ticket_type,
+                    title: `Bilhete ${ticket_type.toUpperCase()} - Resenha Music`,
+                    description: `Bilhete de acesso ao evento Resenha Music (${ticket_type})`,
+                    category_id: 'tickets',
+                    quantity: Number(quantity),
+                    unit_price: unit_price,
+                    currency_id: 'BRL',
+                }],
                 payer: {
                     name: firstName,
-                    surname: lastName, // Apelido do comprador
+                    surname: lastName,
                     email: mainParticipant.email,
                     identification: {
                         type: 'CPF',

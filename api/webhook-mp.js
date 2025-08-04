@@ -53,39 +53,33 @@ export default async function handler(request, response) {
                 const inscriptionId = paymentInfo.external_reference;
                 const paymentStatus = paymentInfo.status;
                 const paymentMethod = paymentInfo.payment_method_id || 'N/A';
-                const payerEmail = paymentInfo.payer?.email;
 
                 if (paymentStatus === 'approved') {
-                    const inscriptionsRef = db.collection('inscriptions');
-                    const approvedDocRef = inscriptionsRef.doc(inscriptionId);
-
-                    // NOVO: Gera o QR Code como uma Data URL
-                    const qrCodeDataURL = await QRCode.toDataURL(inscriptionId, { width: 300 });
-
-                    await approvedDocRef.update({
+                    const inscriptionRef = db.collection('inscriptions').doc(inscriptionId);
+                    
+                    // Atualiza o documento principal da inscrição para "paga"
+                    await inscriptionRef.update({
                         paymentStatus: 'paid',
                         mercadoPagoId: data.id,
                         paymentMethod: paymentMethod,
-                        qrCodeDataURL: qrCodeDataURL, // Salva o QR Code no registo
                         updatedAt: new Date().toISOString()
                     });
-                    console.log(`Inscrição ${inscriptionId} atualizada para paga com QR Code.`);
+                    console.log(`Inscrição principal ${inscriptionId} atualizada para paga.`);
 
-                    if (payerEmail) {
-                        const querySnapshot = await inscriptionsRef
-                            .where('mainParticipant.email', '==', payerEmail)
-                            .where('paymentStatus', '==', 'pending')
-                            .get();
-                        
-                        if (!querySnapshot.empty) {
-                            const batch = db.batch();
-                            querySnapshot.forEach(doc => {
-                                if (doc.id !== inscriptionId) {
-                                    batch.delete(doc.ref);
-                                }
+                    // NOVO: Busca todos os bilhetes individuais e gera um QR Code para cada um
+                    const ticketsSnapshot = await inscriptionRef.collection('tickets').get();
+                    if (!ticketsSnapshot.empty) {
+                        const batch = db.batch();
+                        for (const ticketDoc of ticketsSnapshot.docs) {
+                            const ticketId = ticketDoc.id;
+                            const qrCodeDataURL = await QRCode.toDataURL(ticketId, { width: 300 });
+                            batch.update(ticketDoc.ref, { 
+                                qrCodeDataURL: qrCodeDataURL,
+                                status: 'valid'
                             });
-                            await batch.commit();
+                            console.log(`QR Code gerado para o bilhete ${ticketId}.`);
                         }
+                        await batch.commit();
                     }
                 }
             }
