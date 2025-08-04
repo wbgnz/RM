@@ -96,7 +96,7 @@
         <div class="form-container p-6 sm:p-10 shadow-2xl">
             <!-- Cabeçalho -->
             <div class="text-center mb-10">
-                <h1 class="text-4xl sm:text-5xl font-bold text-white tracking-tight">Resenha Music</h1>
+                <img src="https://raw.githubusercontent.com/wbgnz/BDIMG/d92bd032a164c0846da94b6fbdd731fe4693350c/RESENHA.png" alt="Logo Resenha Music" class="h-32 mx-auto mb-6">
                 <p class="text-lg text-gray-400 mt-3">Preencha os seus dados para garantir a sua vaga.</p>
             </div>
 
@@ -189,80 +189,49 @@
 
             let particlesArray;
 
-            const mouse = {
-                x: null,
-                y: null,
-                radius: 150
-            };
-
-            window.addEventListener('mousemove', (event) => {
-                mouse.x = event.x;
-                mouse.y = event.y;
-            });
-            
-            window.addEventListener('mouseout', () => {
-                mouse.x = null;
-                mouse.y = null;
-            });
-
             class Particle {
-                constructor(x, y, directionX, directionY, size, color) {
-                    this.x = x;
-                    this.y = y;
-                    this.directionX = directionX;
-                    this.directionY = directionY;
-                    this.size = size;
-                    this.color = color;
+                constructor() {
+                    this.reset();
                 }
+                
+                reset() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * canvas.height;
+                    this.baseSize = (Math.random() * 10) + 8; // Tamanho base da fonte
+                    this.maxLife = Math.random() * 200 + 100; // Duração de vida entre 100 e 300 frames
+                    this.life = this.maxLife;
+                }
+
                 draw() {
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false);
-                    ctx.fillStyle = this.color;
-                    ctx.fill();
+                    // Calcula o progresso do ciclo de vida (0 -> 1 -> 0)
+                    const progress = (this.maxLife - this.life) / this.maxLife;
+                    const scale = Math.sin(progress * Math.PI);
+
+                    // O tamanho e a opacidade aumentam e diminuem
+                    const currentSize = this.baseSize * scale;
+                    const opacity = scale * 0.2; // Opacidade máxima de 20%
+
+                    if (currentSize > 1) {
+                        ctx.font = `bold ${currentSize}px Inter`;
+                        ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                        ctx.fillText('?', this.x, this.y);
+                    }
                 }
+
                 update() {
-                    if (this.x > canvas.width || this.x < 0) {
-                        this.directionX = -this.directionX;
+                    this.life -= 1;
+                    if (this.life <= 0) {
+                        this.reset();
                     }
-                    if (this.y > canvas.height || this.y < 0) {
-                        this.directionY = -this.directionY;
-                    }
-
-                    let dx = mouse.x - this.x;
-                    let dy = mouse.y - this.y;
-                    let distance = Math.sqrt(dx * dx + dy * dy);
-                    if (distance < mouse.radius + this.size) {
-                        if (mouse.x < this.x && this.x < canvas.width - this.size * 10) {
-                            this.x += 5;
-                        }
-                        if (mouse.x > this.x && this.x > this.size * 10) {
-                            this.x -= 5;
-                        }
-                        if (mouse.y < this.y && this.y < canvas.height - this.size * 10) {
-                            this.y += 5;
-                        }
-                        if (mouse.y > this.y && this.y > this.size * 10) {
-                            this.y -= 5;
-                        }
-                    }
-
-                    this.x += this.directionX;
-                    this.y += this.directionY;
                     this.draw();
                 }
             }
 
             function initParticles() {
                 particlesArray = [];
-                let numberOfParticles = (canvas.height * canvas.width) / 9000;
+                let numberOfParticles = (canvas.height * canvas.width) / 10000;
                 for (let i = 0; i < numberOfParticles; i++) {
-                    let size = (Math.random() * 1.5) + 0.5;
-                    let x = (Math.random() * ((innerWidth - size * 2) - (size * 2)) + size * 2);
-                    let y = (Math.random() * ((innerHeight - size * 2) - (size * 2)) + size * 2);
-                    let directionX = (Math.random() * .4) - .2;
-                    let directionY = (Math.random() * .4) - .2;
-                    let color = 'rgba(255, 255, 255, 0.5)';
-                    particlesArray.push(new Particle(x, y, directionX, directionY, size, color));
+                    particlesArray.push(new Particle());
                 }
             }
 
