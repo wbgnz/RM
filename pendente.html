@@ -50,7 +50,6 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams(window.location.search);
-            // O Mercado Pago envia o nosso ID como 'external_reference'
             const inscriptionId = params.get('external_reference');
 
             if (inscriptionId) {
@@ -73,8 +72,8 @@
                             const data = await response.json();
                             if (data.status === 'paid') {
                                 clearInterval(intervalId);
-                                // Redireciona para a página de sucesso
-                                window.location.href = '/sucesso.html';
+                                // CORRIGIDO: Redireciona para a página de sucesso com o ID da inscrição
+                                window.location.href = `/sucesso.html?external_reference=${inscriptionId}`;
                             }
                         }
                     } catch (error) {
