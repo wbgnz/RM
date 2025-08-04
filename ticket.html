@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>O seu Bilhete - Resenha Music</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #000000;
+            color: #f5f5f7;
+        }
+        .ticket-container {
+            background-color: #1c1c1e;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <main id="ticket-content" class="w-full max-w-sm mx-auto z-10 hidden">
+        <div class="ticket-container p-8 text-center">
+            <img src="https://raw.githubusercontent.com/wbgnz/BDIMG/main/resenha.jpeg" alt="Logo Resenha Music" class="h-12 mx-auto mb-6">
+            <h1 class="text-2xl font-bold text-white" id="participant-name">Carregando...</h1>
+            <p class="text-md text-gray-400 mt-1">Titular do Bilhete</p>
+
+            <div class="my-8">
+                <img id="qr-code" src="" alt="QR Code do Bilhete" class="w-full max-w-xs mx-auto rounded-lg">
+            </div>
+
+            <div class="flex justify-around text-center border-t border-gray-700 pt-6">
+                <div>
+                    <span class="text-sm text-gray-400 block">Tipo</span>
+                    <span id="ticket-type" class="font-bold text-lg text-white uppercase">...</span>
+                </div>
+                <div>
+                    <span class="text-sm text-gray-400 block">Quantidade</span>
+                    <span id="quantity" class="font-bold text-lg text-white">...</span>
+                </div>
+            </div>
+        </div>
+    </main>
+    <div id="loading" class="text-center">
+        <p>A carregar o seu bilhete...</p>
+    </div>
+     <div id="error" class="text-center text-red-500 hidden">
+        <p>Não foi possível carregar o seu bilhete. Por favor, tente novamente.</p>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const params = new URLSearchParams(window.location.search);
+            const inscriptionId = params.get('id');
+
+            const loadingDiv = document.getElementById('loading');
+            const errorDiv = document.getElementById('error');
+            const ticketContentDiv = document.getElementById('ticket-content');
+
+            if (!inscriptionId) {
+                loadingDiv.classList.add('hidden');
+                errorDiv.classList.remove('hidden');
+                errorDiv.textContent = 'ID da inscrição não encontrado.';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/get-ticket?id=${inscriptionId}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Falha ao buscar os dados do bilhete.');
+                }
+
+                document.getElementById('participant-name').textContent = data.participantName;
+                document.getElementById('ticket-type').textContent = data.ticketType;
+                document.getElementById('quantity').textContent = data.quantity;
+                document.getElementById('qr-code').src = data.qrCodeDataURL;
+
+                loadingDiv.classList.add('hidden');
+                ticketContentDiv.classList.remove('hidden');
+
+            } catch (err) {
+                console.error(err);
+                loadingDiv.classList.add('hidden');
+                errorDiv.classList.remove('hidden');
+                errorDiv.textContent = err.message;
+            }
+        });
+    </script>
+</body>
+</html>

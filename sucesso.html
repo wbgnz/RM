@@ -25,8 +25,25 @@
             <svg class="w-20 h-20 text-green-500 mx-auto mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             <h1 class="text-3xl font-bold text-white">Pagamento Aprovado!</h1>
             <p class="text-lg text-gray-400 mt-3">A sua inscrição para o Resenha Music está confirmada.</p>
-            <p class="text-sm text-gray-500 mt-6">Em breve, receberá um e-mail com os detalhes da sua inscrição. Obrigado!</p>
+            
+            <a id="ticket-link" href="#" class="hidden mt-8 inline-block bg-[#0a84ff] text-white font-semibold px-6 py-3 rounded-xl hover:bg-[#0077ed] transition-all">
+                Ver o seu Bilhete
+            </a>
+
+            <p class="text-sm text-gray-500 mt-6">Também receberá um e-mail com os detalhes da sua inscrição.</p>
         </div>
     </main>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const inscriptionId = params.get('external_reference');
+            const ticketLink = document.getElementById('ticket-link');
+
+            if (inscriptionId) {
+                ticketLink.href = `/ticket.html?id=${inscriptionId}`;
+                ticketLink.classList.remove('hidden');
+            }
+        });
+    </script>
 </body>
 </html>

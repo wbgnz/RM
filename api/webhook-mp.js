@@ -1,6 +1,7 @@
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import QRCode from 'qrcode';
 
 // --- Configuração Robusta do Firebase Admin ---
 let db;
@@ -9,7 +10,7 @@ let firebaseInitializationError = null;
 try {
     const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     if (!serviceAccountString) {
-        throw new Error("A chave da conta de serviço do Firebase não está configurada nas variáveis de ambiente.");
+        throw new Error("A chave da conta de serviço do Firebase não está configurada.");
     }
     const serviceAccount = JSON.parse(serviceAccountString);
 
@@ -27,8 +28,7 @@ try {
 
 export default async function handler(request, response) {
     if (firebaseInitializationError) {
-        console.error("Webhook não pode ser processado devido a erro de inicialização do Firebase.");
-        return response.status(200).send('Erro interno do servidor ao processar webhook.');
+        return response.status(200).send('Erro interno do servidor.');
     }
 
     if (request.method !== 'POST') {
@@ -37,7 +37,6 @@ export default async function handler(request, response) {
 
     const accessToken = process.env.MP_ACCESS_TOKEN;
     if (!accessToken) {
-        console.error("Webhook não pode ser processado: Chave do MP em falta.");
         return response.status(200).send('Erro de configuração do servidor.');
     }
 
@@ -54,22 +53,24 @@ export default async function handler(request, response) {
                 const inscriptionId = paymentInfo.external_reference;
                 const paymentStatus = paymentInfo.status;
                 const paymentMethod = paymentInfo.payment_method_id || 'N/A';
-                const payerEmail = paymentInfo.payer?.email; // E-mail do pagador
+                const payerEmail = paymentInfo.payer?.email;
 
                 if (paymentStatus === 'approved') {
                     const inscriptionsRef = db.collection('inscriptions');
-                    
-                    // Atualiza a inscrição aprovada para "paga"
                     const approvedDocRef = inscriptionsRef.doc(inscriptionId);
+
+                    // NOVO: Gera o QR Code como uma Data URL
+                    const qrCodeDataURL = await QRCode.toDataURL(inscriptionId, { width: 300 });
+
                     await approvedDocRef.update({
                         paymentStatus: 'paid',
                         mercadoPagoId: data.id,
                         paymentMethod: paymentMethod,
+                        qrCodeDataURL: qrCodeDataURL, // Salva o QR Code no registo
                         updatedAt: new Date().toISOString()
                     });
-                    console.log(`Inscrição ${inscriptionId} atualizada para paga via ${paymentMethod}.`);
+                    console.log(`Inscrição ${inscriptionId} atualizada para paga com QR Code.`);
 
-                    // NOVO: Procura e apaga outras inscrições pendentes do mesmo utilizador
                     if (payerEmail) {
                         const querySnapshot = await inscriptionsRef
                             .where('mainParticipant.email', '==', payerEmail)
@@ -79,10 +80,8 @@ export default async function handler(request, response) {
                         if (!querySnapshot.empty) {
                             const batch = db.batch();
                             querySnapshot.forEach(doc => {
-                                // Garante que não apaga a que acabámos de aprovar
                                 if (doc.id !== inscriptionId) {
                                     batch.delete(doc.ref);
-                                    console.log(`A apagar inscrição pendente duplicada: ${doc.id}`);
                                 }
                             });
                             await batch.commit();
