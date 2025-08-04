@@ -197,19 +197,16 @@
                 reset() {
                     this.x = Math.random() * canvas.width;
                     this.y = Math.random() * canvas.height;
-                    this.baseSize = (Math.random() * 10) + 8; // Tamanho base da fonte
-                    this.maxLife = Math.random() * 200 + 100; // Duração de vida entre 100 e 300 frames
+                    this.baseSize = (Math.random() * 10) + 8;
+                    this.maxLife = Math.random() * 200 + 100;
                     this.life = this.maxLife;
                 }
 
                 draw() {
-                    // Calcula o progresso do ciclo de vida (0 -> 1 -> 0)
                     const progress = (this.maxLife - this.life) / this.maxLife;
                     const scale = Math.sin(progress * Math.PI);
-
-                    // O tamanho e a opacidade aumentam e diminuem
                     const currentSize = this.baseSize * scale;
-                    const opacity = scale * 0.2; // Opacidade máxima de 20%
+                    const opacity = scale * 0.2;
 
                     if (currentSize > 1) {
                         ctx.font = `bold ${currentSize}px Inter`;
@@ -326,29 +323,44 @@
                 radio.addEventListener('change', updateTotalPrice);
             });
 
+            // --- FUNÇÕES DE MÁSCARA OTIMIZADAS ---
             function applyWhatsappMask(inputElement) {
-                 inputElement.addEventListener('input', (e) => {
-                    let value = e.target.value.replace(/\D/g, '').slice(0, 11);
-                    value = value.replace(/^(\d{2})(\d)/g, '($1) $2');
-                    value = value.replace(/(\d)(\d{4})$/, '$1-$2');
+                inputElement.addEventListener('input', (e) => {
+                    let value = e.target.value.replace(/\D/g, '');
+                    value = value.slice(0, 11);
+                    if (value.length > 10) {
+                        value = value.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+                    } else if (value.length > 6) {
+                        value = value.replace(/(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3');
+                    } else if (value.length > 2) {
+                        value = value.replace(/(\d{2})(\d*)/, '($1) $2');
+                    }
                     e.target.value = value;
                 });
             }
 
             function applyCPFMask(inputElement) {
                 inputElement.addEventListener('input', (e) => {
-                    let value = e.target.value.replace(/\D/g, '').slice(0, 11);
-                    value = value.replace(/(\d{3})(\d)/, '$1.$2');
-                    value = value.replace(/(\d{3})(\d)/, '$1.$2');
-                    value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                    let value = e.target.value.replace(/\D/g, '');
+                    value = value.slice(0, 11);
+                    if (value.length > 9) {
+                        value = value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+                    } else if (value.length > 6) {
+                        value = value.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+                    } else if (value.length > 3) {
+                        value = value.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+                    }
                     e.target.value = value;
                 });
             }
 
             function applyCEPMask(inputElement) {
                  inputElement.addEventListener('input', (e) => {
-                    let value = e.target.value.replace(/\D/g, '').slice(0, 8);
-                    value = value.replace(/^(\d{5})(\d)/, '$1-$2');
+                    let value = e.target.value.replace(/\D/g, '');
+                    value = value.slice(0, 8);
+                    if (value.length > 5) {
+                        value = value.replace(/(\d{5})(\d{1,3})/, '$1-$2');
+                    }
                     e.target.value = value;
                 });
             }
