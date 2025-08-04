@@ -36,7 +36,6 @@
         tbody tr:hover {
             background-color: rgba(255, 255, 255, 0.05);
         }
-        /* Estilos para as abas */
         .tab-button.active {
             background-color: #333336;
             color: #f5f5f7;
@@ -55,7 +54,6 @@
         </header>
 
         <main class="p-4 sm:p-8">
-            <!-- Navegação das Abas -->
             <div class="mb-8">
                 <div class="flex space-x-2 bg-[#1c1c1e] p-1 rounded-lg max-w-xs">
                     <button id="tab-dashboard" class="tab-button active w-full py-2 px-4 rounded-md text-sm font-semibold transition-colors">Dashboard</button>
@@ -63,7 +61,6 @@
                 </div>
             </div>
 
-            <!-- Conteúdo da Aba Dashboard -->
             <div id="dashboard-content">
                 <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <div class="glass-card p-6 flex flex-col justify-between">
@@ -104,19 +101,18 @@
                     </div>
                 </section>
 
-                <section class="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
-                    <div class="glass-card p-6 lg:col-span-2">
-                        <h3 class="text-lg font-semibold text-white mb-4">Estado das Inscrições</h3>
-                        <canvas id="status-chart"></canvas>
+                <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div class="glass-card p-6">
+                        <h3 class="text-lg font-semibold text-white mb-4">Distribuição Geográfica (Pagos)</h3>
+                        <canvas id="geo-chart"></canvas>
                     </div>
-                    <div class="glass-card p-6 lg:col-span-3">
+                    <div class="glass-card p-6">
                         <h3 class="text-lg font-semibold text-white mb-4">Tipos de Bilhete (Pagos)</h3>
                         <canvas id="ticket-chart"></canvas>
                     </div>
                 </section>
             </div>
 
-            <!-- Conteúdo da Aba Inscrições -->
             <div id="inscriptions-content" class="hidden">
                 <section class="glass-card overflow-hidden">
                     <div class="p-6 border-b border-gray-700">
@@ -127,13 +123,11 @@
                             <thead class="text-xs text-gray-400 uppercase">
                                 <tr>
                                     <th class="p-4">Nome do Comprador</th>
-                                    <th class="p-4">E-mail</th>
+                                    <th class="p-4">WhatsApp</th>
                                     <th class="p-4 text-center">Qtd.</th>
-                                    <th class="p-4">Tipo</th>
-                                    <th class="p-4">Total</th>
                                     <th class="p-4">Meio de Pagamento</th>
                                     <th class="p-4">Estado</th>
-                                    <th class="p-4">Data</th>
+                                    <th class="p-4">Ações</th>
                                 </tr>
                             </thead>
                             <tbody id="inscriptions-table-body" class="divide-y divide-gray-800">
@@ -158,16 +152,15 @@
 
             const authToken = sessionStorage.getItem('admin-auth-token');
             if (!authToken) {
-                window.location.href = '/login.html';
+                window.location.href = 'login.html'; // CORRIGIDO
                 return;
             }
 
             logoutButton.addEventListener('click', () => {
                 sessionStorage.removeItem('admin-auth-token');
-                window.location.href = '/login.html';
+                window.location.href = 'login.html'; // CORRIGIDO
             });
 
-            // Lógica das abas
             tabDashboard.addEventListener('click', () => {
                 dashboardContent.classList.remove('hidden');
                 inscriptionsContent.classList.add('hidden');
@@ -202,6 +195,17 @@
             }
         });
 
+        function getRegionFromCep(cep) {
+            if (!cep) return 'N/A';
+            const cepPrefix = parseInt(cep.substring(0, 5), 10);
+            if (cepPrefix >= 74000 && cepPrefix <= 74999) return 'Goiânia e Região';
+            if (cepPrefix >= 75000 && cepPrefix <= 75199) return 'Anápolis e Região';
+            if (cepPrefix >= 75900 && cepPrefix <= 75999) return 'Sul Goiano';
+            if (cepPrefix >= 76400 && cepPrefix <= 76599) return 'Norte Goiano';
+            if (cepPrefix >= 72800 && cepPrefix <= 73999) return 'Entorno do DF';
+            return 'Outras Regiões';
+        }
+
         function displayData(inscriptions) {
             const revenuePaidEl = document.getElementById('revenue-paid');
             const inscriptionsPaidEl = document.getElementById('inscriptions-paid');
@@ -212,12 +216,15 @@
             let inscriptionsPaidCount = 0;
             let inscriptionsPendingCount = 0;
             let paidTicketTypes = { pista: 0, vip: 0 };
+            let geoData = {};
 
             inscriptions.forEach(item => {
                 if (item.paymentStatus === 'paid') {
                     inscriptionsPaidCount++;
                     revenuePaid += item.total_price;
                     paidTicketTypes[item.ticket_type] += item.quantity;
+                    const region = getRegionFromCep(item.mainParticipant.cep);
+                    geoData[region] = (geoData[region] || 0) + item.quantity;
                 } else {
                     inscriptionsPendingCount++;
                 }
@@ -232,19 +239,22 @@
             tableBody.innerHTML = '';
             inscriptions.forEach(item => {
                 const statusClass = item.paymentStatus === 'paid' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400';
-                const date = new Date(item.createdAt).toLocaleDateString('pt-BR');
                 const paymentMethod = item.paymentMethod ? item.paymentMethod.toUpperCase() : 'N/A';
+                const whatsappNumber = item.mainParticipant.whatsapp.replace(/\D/g, '');
+                const whatsappLink = `https://wa.me/55${whatsappNumber}`;
 
                 const row = `
                     <tr class="text-sm">
                         <td class="p-4 font-medium text-white">${item.mainParticipant.name}</td>
-                        <td class="p-4 text-gray-400">${item.mainParticipant.email}</td>
+                        <td class="p-4 text-gray-400">${item.mainParticipant.whatsapp}</td>
                         <td class="p-4 text-gray-400 text-center">${item.quantity}</td>
-                        <td class="p-4 text-gray-400 uppercase">${item.ticket_type}</td>
-                        <td class="p-4 text-gray-400">${item.total_price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                         <td class="p-4 text-gray-400">${paymentMethod}</td>
                         <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-semibold ${statusClass}">${item.paymentStatus.toUpperCase()}</span></td>
-                        <td class="p-4 text-gray-400">${date}</td>
+                        <td class="p-4">
+                            <a href="${whatsappLink}" target="_blank" class="bg-green-500/80 text-white text-xs font-bold py-2 px-3 rounded-lg hover:bg-green-500">
+                                Conversar
+                            </a>
+                        </td>
                     </tr>
                 `;
                 tableBody.innerHTML += row;
@@ -252,43 +262,24 @@
 
             // Gráficos
             const statusCtx = document.getElementById('status-chart').getContext('2d');
-            const gradientGreen = statusCtx.createLinearGradient(0, 0, 0, 200);
-            gradientGreen.addColorStop(0, '#22c55e');
-            gradientGreen.addColorStop(1, '#16a34a');
-            
-            const gradientYellow = statusCtx.createLinearGradient(0, 0, 0, 200);
-            gradientYellow.addColorStop(0, '#eab308');
-            gradientYellow.addColorStop(1, '#ca8a04');
-
             new Chart(statusCtx, {
                 type: 'doughnut',
                 data: {
                     labels: ['Pagos', 'Pendentes'],
                     datasets: [{
                         data: [inscriptionsPaidCount, inscriptionsPendingCount],
-                        backgroundColor: [gradientGreen, gradientYellow],
+                        backgroundColor: ['#22c55e', '#eab308'],
                         borderColor: '#1c1c1e',
                         borderWidth: 4,
                     }]
                 },
                 options: {
-                    responsive: true,
-                    cutout: '70%',
-                    plugins: { 
-                        legend: { position: 'bottom', labels: { color: '#f5f5f7', padding: 20 } }
-                    }
+                    responsive: true, cutout: '70%',
+                    plugins: { legend: { position: 'bottom', labels: { color: '#f5f5f7', padding: 20 } } }
                 }
             });
 
             const ticketCtx = document.getElementById('ticket-chart').getContext('2d');
-            const gradientBlue = ticketCtx.createLinearGradient(0, 0, 0, 300);
-            gradientBlue.addColorStop(0, 'rgba(59, 130, 246, 0.8)');
-            gradientBlue.addColorStop(1, 'rgba(59, 130, 246, 0.2)');
-
-            const gradientIndigo = ticketCtx.createLinearGradient(0, 0, 0, 300);
-            gradientIndigo.addColorStop(0, 'rgba(139, 92, 246, 0.8)');
-            gradientIndigo.addColorStop(1, 'rgba(139, 92, 246, 0.2)');
-
             new Chart(ticketCtx, {
                 type: 'bar',
                 data: {
@@ -296,23 +287,36 @@
                     datasets: [{
                         label: 'Bilhetes Pagos',
                         data: [paidTicketTypes.pista, paidTicketTypes.vip],
-                        backgroundColor: [gradientBlue, gradientIndigo],
+                        backgroundColor: ['#3b82f6', '#8b5cf6'],
                         borderRadius: 8,
-                        borderSkipped: false,
                     }]
                 },
                 options: {
-                    responsive: true,
-                    plugins: { legend: { display: false } },
+                    responsive: true, plugins: { legend: { display: false } },
                     scales: {
-                        y: { 
-                            ticks: { color: '#9ca3af', stepSize: 1 },
-                            grid: { color: 'rgba(255,255,255,0.1)' }
-                        },
-                        x: { 
-                            ticks: { color: '#f5f5f7' },
-                            grid: { display: false }
-                        }
+                        y: { ticks: { color: '#9ca3af', stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        x: { ticks: { color: '#f5f5f7' }, grid: { display: false } }
+                    }
+                }
+            });
+
+            const geoCtx = document.getElementById('geo-chart').getContext('2d');
+            new Chart(geoCtx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(geoData),
+                    datasets: [{
+                        label: 'Inscritos por Região',
+                        data: Object.values(geoData),
+                        backgroundColor: '#0a84ff',
+                        borderRadius: 8,
+                    }]
+                },
+                options: {
+                    indexAxis: 'y', responsive: true, plugins: { legend: { display: false } },
+                    scales: {
+                        y: { ticks: { color: '#f5f5f7' }, grid: { display: false } },
+                        x: { ticks: { color: '#9ca3af', stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)' } }
                     }
                 }
             });
