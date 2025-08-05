@@ -22,8 +22,8 @@ try {
 // -----------------------------------------
 
 const TICKET_PRICES = {
-    pista: 1.00,
-    vip: 2.00,
+    pista: 99.90,
+    vip: 149.90,
 };
 
 export default async function handler(request, response) {
