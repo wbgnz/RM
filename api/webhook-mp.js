@@ -67,20 +67,35 @@ export default async function handler(request, response) {
                     const inscriptionDoc = await inscriptionRef.get();
                     const inscriptionData = inscriptionDoc.data();
 
-                    // Evita processar o mesmo pagamento duas vezes
                     if (inscriptionData.paymentStatus === 'paid') {
                         return response.status(200).send('Webhook já processado.');
                     }
 
-                    const qrCodeDataURL = await QRCode.toDataURL(inscriptionId, { width: 300 });
-
+                    // Atualiza o documento principal da inscrição para "paga"
                     await inscriptionRef.update({
                         paymentStatus: 'paid',
                         mercadoPagoId: data.id,
                         paymentMethod: paymentMethod,
-                        qrCodeDataURL: qrCodeDataURL,
                         updatedAt: new Date().toISOString()
                     });
+                    console.log(`Inscrição principal ${inscriptionId} atualizada para paga.`);
+
+                    // NOVO: Busca todos os bilhetes individuais e gera um QR Code para cada um
+                    const ticketsSnapshot = await inscriptionRef.collection('tickets').get();
+                    if (!ticketsSnapshot.empty) {
+                        const batch = db.batch();
+                        for (const ticketDoc of ticketsSnapshot.docs) {
+                            const ticketId = ticketDoc.id;
+                            // Gera um QR Code único para cada bilhete individual
+                            const qrCodeDataURL = await QRCode.toDataURL(ticketId, { width: 300 });
+                            batch.update(ticketDoc.ref, { 
+                                qrCodeDataURL: qrCodeDataURL,
+                                status: 'valid' // Atualiza o estado do bilhete individual
+                            });
+                            console.log(`QR Code gerado para o bilhete ${ticketId}.`);
+                        }
+                        await batch.commit();
+                    }
 
                     // Envia o e-mail de confirmação
                     if (payerEmail) {
@@ -91,8 +106,8 @@ export default async function handler(request, response) {
                             html: `
                                 <h1>Olá, ${inscriptionData.mainParticipant.name}!</h1>
                                 <p>A sua inscrição para o evento <strong>Resenha Music</strong> foi confirmada com sucesso.</p>
-                                <p>Para aceder ao seu bilhete digital, clique no link abaixo:</p>
-                                <a href="https://${request.headers.host}/ticket.html?id=${inscriptionId}">Ver o seu Bilhete</a>
+                                <p>Para aceder aos seus bilhetes digitais, clique no link abaixo:</p>
+                                <a href="https://${request.headers.host}/ticket.html?id=${inscriptionId}">Ver os seus Bilhetes</a>
                                 <p>Obrigado!</p>
                             `
                         });
