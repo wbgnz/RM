@@ -28,7 +28,7 @@ export default async function handler(request, response) {
     const { couponCode } = request.body;
 
     if (!couponCode) {
-        return response.status(400).json({ error: 'O código do cupão é obrigatório' });
+        return response.status(400).json({ error: 'O código do cupom é obrigatório' });
     }
 
     try {
@@ -36,7 +36,7 @@ export default async function handler(request, response) {
         const doc = await couponRef.get();
 
         if (!doc.exists) {
-            return response.status(404).json({ error: 'Cupão inválido ou não encontrado' });
+            return response.status(404).json({ error: 'Cupom inválido ou não encontrado' });
         }
 
         const couponData = doc.data();
@@ -53,7 +53,7 @@ export default async function handler(request, response) {
         });
 
     } catch (error) {
-        console.error("Erro ao validar o cupão:", error);
-        return response.status(500).json({ error: 'Falha ao validar o cupão' });
+        console.error("Erro ao validar o cupom:", error);
+        return response.status(500).json({ error: 'Falha ao validar o cupom' });
     }
 }
