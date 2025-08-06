@@ -32,7 +32,9 @@ export default async function handler(request, response) {
     }
 
     try {
-        const couponRef = db.collection('coupons').doc(couponCode.toUpperCase());
+        // CORRIGIDO: Limpa e converte o código para maiúsculas para uma correspondência fiável
+        const cleanCouponCode = couponCode.trim().toUpperCase();
+        const couponRef = db.collection('coupons').doc(cleanCouponCode);
         const doc = await couponRef.get();
 
         if (!doc.exists) {
