@@ -16,23 +16,18 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #000000;
+            background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('https://raw.githubusercontent.com/wbgnz/BDIMG/main/Logo%20Resenha.png');
+            background-size: cover;
+            background-position: center center;
+            background-attachment: fixed;
             color: #f5f5f7;
             overflow-x: hidden;
         }
 
-        #particle-canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-            pointer-events: none;
-        }
-
         .form-container {
-            background-color: #1c1c1e;
+            background: rgba(28, 28, 30, 0.7);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 24px;
             position: relative;
@@ -85,14 +80,17 @@
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        
+        /* Estilos para o botão flutuante */
+        .floating-button-container.visible {
+            transform: translateY(0);
+        }
 
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
+<body class="p-4">
 
-    <canvas id="particle-canvas"></canvas>
-
-    <main class="w-full max-w-lg mx-auto z-10">
+    <main class="w-full max-w-lg mx-auto z-10 pt-24 pb-24">
         <div class="form-container p-6 sm:p-10 shadow-2xl">
             <!-- Cabeçalho -->
             <div class="text-center mb-10">
@@ -179,77 +177,40 @@
             </form>
         </div>
     </main>
+    
+    <!-- Botão Flutuante -->
+    <div id="floating-button-container" class="fixed bottom-0 left-0 w-full p-4 z-20 transition-transform duration-300 translate-y-full bg-black/50 backdrop-blur-sm border-t border-gray-800">
+        <button id="floating-submit-button" class="w-full max-w-lg mx-auto block bg-[#0a84ff] text-white font-semibold text-lg py-4 rounded-xl shadow-lg hover:bg-[#0077ed] transition-all duration-300">
+            Continuar para Pagamento
+        </button>
+    </div>
+
+    <!-- Espaçador para permitir o scroll -->
+    <div class="h-screen"></div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const canvas = document.getElementById('particle-canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            const form = document.getElementById('inscription-form');
+            const floatingButtonContainer = document.getElementById('floating-button-container');
+            const floatingSubmitButton = document.getElementById('floating-submit-button');
+            const mainFormButton = document.getElementById('submit-button');
 
-            let particlesArray;
-
-            class Particle {
-                constructor() {
-                    this.reset();
+            // Lógica do botão flutuante
+            window.addEventListener('scroll', () => {
+                // Mostra o botão flutuante quando o botão original sai do ecrã
+                const mainButtonRect = mainFormButton.getBoundingClientRect();
+                if (mainButtonRect.top < window.innerHeight && mainButtonRect.bottom < 0) {
+                    floatingButtonContainer.classList.add('visible');
+                } else {
+                    floatingButtonContainer.classList.remove('visible');
                 }
-                
-                reset() {
-                    this.x = Math.random() * canvas.width;
-                    this.y = Math.random() * canvas.height;
-                    this.baseSize = (Math.random() * 10) + 8;
-                    this.maxLife = Math.random() * 200 + 100;
-                    this.life = this.maxLife;
-                }
-
-                draw() {
-                    const progress = (this.maxLife - this.life) / this.maxLife;
-                    const scale = Math.sin(progress * Math.PI);
-                    const currentSize = this.baseSize * scale;
-                    const opacity = scale * 0.2;
-
-                    if (currentSize > 1) {
-                        ctx.font = `bold ${currentSize}px Inter`;
-                        ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-                        ctx.fillText('?', this.x, this.y);
-                    }
-                }
-
-                update() {
-                    this.life -= 1;
-                    if (this.life <= 0) {
-                        this.reset();
-                    }
-                    this.draw();
-                }
-            }
-
-            function initParticles() {
-                particlesArray = [];
-                let numberOfParticles = (canvas.height * canvas.width) / 10000;
-                for (let i = 0; i < numberOfParticles; i++) {
-                    particlesArray.push(new Particle());
-                }
-            }
-
-            function animateParticles() {
-                requestAnimationFrame(animateParticles);
-                ctx.clearRect(0, 0, innerWidth, innerHeight);
-                for (let i = 0; i < particlesArray.length; i++) {
-                    particlesArray[i].update();
-                }
-            }
-            
-            window.addEventListener('resize', () => {
-                canvas.width = innerWidth;
-                canvas.height = innerHeight;
-                initParticles();
             });
 
-            initParticles();
-            animateParticles();
+            floatingSubmitButton.addEventListener('click', () => {
+                form.requestSubmit();
+            });
 
-            const form = document.getElementById('inscription-form');
+            // Restante do seu código JavaScript...
             const ticketTypeRadios = document.querySelectorAll('input[name="ticket_type"]');
             const quantitySpan = document.getElementById('quantity');
             const decreaseBtn = document.getElementById('decrease-qty');
@@ -293,7 +254,7 @@
                 participantsContainer.appendChild(newParticipantDiv);
                 
                 const newWhatsappInput = newParticipantDiv.querySelector(`#whatsapp_${participantNumber}`);
-                applyWhatsappMask(newWhatsappInput);
+                applyMask(newWhatsappInput, maskWhatsapp);
             }
 
             function removeLastParticipantForm() {
@@ -323,7 +284,6 @@
                 radio.addEventListener('change', updateTotalPrice);
             });
 
-            // --- FUNÇÕES DE MÁSCARA OTIMIZADAS ---
             function applyMask(inputElement, maskFunction) {
                 inputElement.addEventListener('input', (e) => {
                     e.target.value = maskFunction(e.target.value);
@@ -365,11 +325,6 @@
             applyMask(document.getElementById('whatsapp'), maskWhatsapp);
             applyMask(document.getElementById('cpf'), maskCPF);
             applyMask(document.getElementById('cep'), maskCEP);
-            
-            // Reaplicar máscara para campos de WhatsApp adicionados dinamicamente
-            function applyWhatsappMask(inputElement) {
-                applyMask(inputElement, maskWhatsapp);
-            }
 
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
