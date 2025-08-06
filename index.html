@@ -160,9 +160,9 @@
                     </div>
                 </div>
 
-                <!-- NOVO: Campo de Cupão -->
+                <!-- Campo de Cupom -->
                 <div class="mt-8 border-t border-gray-700 pt-6">
-                    <label for="coupon" class="block mb-2 text-sm font-medium text-gray-400">Cupão de Desconto</label>
+                    <label for="coupon" class="block mb-2 text-sm font-medium text-gray-400">Cupom de Desconto</label>
                     <div class="flex space-x-2">
                         <input type="text" id="coupon" name="coupon" class="form-input w-full p-3 uppercase" placeholder="INSIRA O SEU CÓDIGO">
                         <button type="button" id="apply-coupon-btn" class="bg-gray-600 text-white font-semibold px-5 rounded-lg hover:bg-gray-500 transition-colors">Aplicar</button>
@@ -283,11 +283,11 @@
 
                     if (response.ok && data.success) {
                         appliedCoupon = data.coupon;
-                        couponMessage.textContent = 'Cupão aplicado com sucesso!';
+                        couponMessage.textContent = 'Cupom aplicado com sucesso!';
                         couponMessage.className = 'text-green-500 text-sm mt-2 h-5';
                         updateTotalPrice();
                     } else {
-                        throw new Error(data.error || 'Cupão inválido');
+                        throw new Error(data.error || 'Cupom inválido');
                     }
                 } catch (error) {
                     appliedCoupon = null;
@@ -427,7 +427,7 @@
                     additionalParticipants: additionalParticipants,
                     ticket_type: formData.get('ticket_type'),
                     quantity: currentQuantity,
-                    coupon: appliedCoupon // Envia o cupão aplicado para o backend
+                    coupon: appliedCoupon
                 };
                 
                 try {
