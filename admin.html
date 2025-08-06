@@ -50,7 +50,10 @@
     <div id="content" class="hidden">
         <header class="bg-transparent p-4 flex justify-between items-center sticky top-0 z-20 backdrop-blur-md border-b border-gray-800">
             <img src="https://raw.githubusercontent.com/wbgnz/BDIMG/main/resenha.jpeg" alt="Logo Resenha Music" class="h-10">
-            <button id="logout-button" class="text-sm text-red-500 hover:text-red-400 font-semibold">Sair</button>
+            <div>
+                <button id="regenerate-qrcodes-btn" class="text-sm bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-500 transition-colors mr-4">Gerar QR Codes Faltantes</button>
+                <button id="logout-button" class="text-sm text-red-500 hover:text-red-400 font-semibold">Sair</button>
+            </div>
         </header>
 
         <main class="p-4 sm:p-8">
@@ -161,6 +164,7 @@
             const loadingOverlay = document.getElementById('loading-overlay');
             const contentDiv = document.getElementById('content');
             const logoutButton = document.getElementById('logout-button');
+            const regenerateBtn = document.getElementById('regenerate-qrcodes-btn');
             const tabDashboard = document.getElementById('tab-dashboard');
             const tabInscriptions = document.getElementById('tab-inscriptions');
             const dashboardContent = document.getElementById('dashboard-content');
@@ -176,6 +180,22 @@
             logoutButton.addEventListener('click', () => {
                 sessionStorage.removeItem('admin-auth-token');
                 window.location.href = 'login.html';
+            });
+
+            regenerateBtn.addEventListener('click', async () => {
+                regenerateBtn.disabled = true;
+                regenerateBtn.textContent = 'A gerar...';
+                try {
+                    const response = await fetch('/api/regenerate-qrcodes', { method: 'POST' });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || 'Falha ao regenerar');
+                    alert(data.message);
+                } catch (error) {
+                    alert(`Erro: ${error.message}`);
+                } finally {
+                    regenerateBtn.disabled = false;
+                    regenerateBtn.textContent = 'Gerar QR Codes Faltantes';
+                }
             });
 
             tabDashboard.addEventListener('click', () => {
@@ -310,6 +330,8 @@
                     actionsHtml += `<button data-id="${item.id}" class="generate-link-btn bg-blue-500/80 text-white text-xs font-bold py-2 px-3 rounded-lg hover:bg-blue-500">Ver Bilhete</button>`;
                 }
 
+                const statusText = item.paymentStatus === 'paid' ? 'PAGO' : 'PENDENTE';
+
                 const row = `
                     <tr class="text-sm">
                         <td class="p-4 font-medium text-white">${item.mainParticipant.name}</td>
@@ -317,7 +339,7 @@
                         <td class="p-4 text-gray-400 text-center">${item.quantity}</td>
                         <td class="p-4 text-gray-400 uppercase">${item.ticket_type}</td>
                         <td class="p-4 text-gray-400">${paymentMethod}</td>
-                        <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-semibold ${statusClass}">${item.paymentStatus.toUpperCase()}</span></td>
+                        <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-semibold ${statusClass}">${statusText}</span></td>
                         <td class="p-4 flex space-x-2">
                             ${actionsHtml}
                         </td>
