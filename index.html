@@ -16,12 +16,11 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #000; /* Fundo preto base */
+            background-color: #000;
             color: #f5f5f7;
             overflow-x: hidden;
         }
 
-        /* CORREÇÃO: Aplica a imagem a um pseudo-elemento fixo para compatibilidade móvel */
         body::before {
             content: '';
             position: fixed;
@@ -30,9 +29,10 @@
             width: 100%;
             height: 100vh;
             background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('https://raw.githubusercontent.com/wbgnz/BDIMG/main/Logo%20Resenha.png');
-            background-size: cover;
+            background-size: contain;
+            background-repeat: no-repeat;
             background-position: center center;
-            z-index: -1; /* Coloca-o atrás de todo o conteúdo */
+            z-index: -1;
         }
 
         .form-container {
@@ -160,7 +160,17 @@
                     </div>
                 </div>
 
-                <div class="mt-8 flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:items-center justify-between border-t border-gray-700 pt-6">
+                <!-- NOVO: Campo de Cupão -->
+                <div class="mt-8 border-t border-gray-700 pt-6">
+                    <label for="coupon" class="block mb-2 text-sm font-medium text-gray-400">Cupão de Desconto</label>
+                    <div class="flex space-x-2">
+                        <input type="text" id="coupon" name="coupon" class="form-input w-full p-3 uppercase" placeholder="INSIRA O SEU CÓDIGO">
+                        <button type="button" id="apply-coupon-btn" class="bg-gray-600 text-white font-semibold px-5 rounded-lg hover:bg-gray-500 transition-colors">Aplicar</button>
+                    </div>
+                    <p id="coupon-message" class="text-sm mt-2 h-5"></p> <!-- Espaço para mensagens -->
+                </div>
+
+                <div class="mt-4 flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:items-center justify-between border-t border-gray-700 pt-6">
                     <div class="flex items-center">
                         <label class="text-base font-medium text-white mr-4">Quantidade</label>
                         <div class="flex items-center bg-[#333336] rounded-lg">
@@ -188,14 +198,12 @@
         </div>
     </main>
     
-    <!-- Botão Flutuante -->
     <div id="floating-button-container" class="fixed bottom-0 left-0 w-full p-4 z-20 transition-transform duration-300 translate-y-full bg-black/50 backdrop-blur-sm border-t border-gray-800">
         <button id="floating-submit-button" class="w-full max-w-lg mx-auto block bg-[#0a84ff] text-white font-semibold text-lg py-4 rounded-xl shadow-lg hover:bg-[#0077ed] transition-all duration-300">
             Continuar para Pagamento
         </button>
     </div>
 
-    <!-- Espaçador para permitir o scroll -->
     <div class="h-screen"></div>
 
     <script>
@@ -205,7 +213,6 @@
             const floatingSubmitButton = document.getElementById('floating-submit-button');
             const mainFormButton = document.getElementById('submit-button');
 
-            // Lógica do botão flutuante
             window.addEventListener('scroll', () => {
                 const mainButtonRect = mainFormButton.getBoundingClientRect();
                 if (mainButtonRect.top < window.innerHeight && mainButtonRect.bottom < 0) {
@@ -226,6 +233,9 @@
             const totalPriceSpan = document.getElementById('total-price');
             const loadingOverlay = document.getElementById('loading-overlay');
             const participantsContainer = document.getElementById('additional-participants-container');
+            const couponInput = document.getElementById('coupon');
+            const applyCouponBtn = document.getElementById('apply-coupon-btn');
+            const couponMessage = document.getElementById('coupon-message');
 
             const ticketPrices = {
                 pista: 99.90,
@@ -233,6 +243,7 @@
             };
 
             let currentQuantity = 1;
+            let appliedCoupon = null;
 
             function formatCurrency(value) {
                 return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -241,9 +252,53 @@
             function updateTotalPrice() {
                 const selectedTicketType = document.querySelector('input[name="ticket_type"]:checked').value;
                 const pricePerTicket = ticketPrices[selectedTicketType];
-                const total = pricePerTicket * currentQuantity;
-                totalPriceSpan.textContent = formatCurrency(total);
+                let total = pricePerTicket * currentQuantity;
+
+                if (appliedCoupon) {
+                    if (appliedCoupon.type === 'percentage') {
+                        total *= (1 - appliedCoupon.value / 100);
+                    } else if (appliedCoupon.type === 'fixed') {
+                        total -= appliedCoupon.value;
+                    }
+                }
+
+                totalPriceSpan.textContent = formatCurrency(Math.max(0, total));
             }
+
+            applyCouponBtn.addEventListener('click', async () => {
+                const couponCode = couponInput.value;
+                if (!couponCode) return;
+
+                applyCouponBtn.disabled = true;
+                applyCouponBtn.textContent = '...';
+                couponMessage.textContent = '';
+
+                try {
+                    const response = await fetch('/api/validate-coupon', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ couponCode })
+                    });
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        appliedCoupon = data.coupon;
+                        couponMessage.textContent = 'Cupão aplicado com sucesso!';
+                        couponMessage.className = 'text-green-500 text-sm mt-2 h-5';
+                        updateTotalPrice();
+                    } else {
+                        throw new Error(data.error || 'Cupão inválido');
+                    }
+                } catch (error) {
+                    appliedCoupon = null;
+                    couponMessage.textContent = error.message;
+                    couponMessage.className = 'text-red-500 text-sm mt-2 h-5';
+                    updateTotalPrice();
+                } finally {
+                    applyCouponBtn.disabled = false;
+                    applyCouponBtn.textContent = 'Aplicar';
+                }
+            });
 
             function addParticipantForm(participantNumber) {
                 const newParticipantDiv = document.createElement('div');
@@ -331,8 +386,12 @@
             }
             
             applyMask(document.getElementById('whatsapp'), maskWhatsapp);
-            applyMask(document.getElementById('cpf'), maskCPF); // CORRIGIDO
+            applyMask(document.getElementById('cpf'), maskCPF);
             applyMask(document.getElementById('cep'), maskCEP);
+            
+            function applyWhatsappMask(inputElement) {
+                applyMask(inputElement, maskWhatsapp);
+            }
 
             form.addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -367,7 +426,8 @@
                     mainParticipant: mainParticipant,
                     additionalParticipants: additionalParticipants,
                     ticket_type: formData.get('ticket_type'),
-                    quantity: currentQuantity
+                    quantity: currentQuantity,
+                    coupon: appliedCoupon // Envia o cupão aplicado para o backend
                 };
                 
                 try {

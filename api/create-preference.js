@@ -43,28 +43,44 @@ export default async function handler(request, response) {
     const preference = new Preference(client);
 
     try {
-        const { mainParticipant, additionalParticipants, ticket_type, quantity } = request.body;
+        const { mainParticipant, additionalParticipants, ticket_type, quantity, coupon } = request.body;
         if (!mainParticipant || !ticket_type || !quantity) {
             return response.status(400).json({ error: 'Faltam dados obrigatórios' });
         }
 
-        const unit_price = TICKET_PRICES[ticket_type];
+        let unit_price = TICKET_PRICES[ticket_type];
         if (!unit_price) {
             return response.status(400).json({ error: 'Tipo de bilhete inválido' });
+        }
+
+        let total_price = unit_price * quantity;
+        let discount = 0;
+
+        // NOVO: Valida e aplica o cupão no backend
+        if (coupon && coupon.code) {
+            const couponRef = db.collection('coupons').doc(coupon.code);
+            const doc = await couponRef.get();
+
+            if (doc.exists) {
+                const couponData = doc.data();
+                if (couponData.type === 'percentage') {
+                    discount = total_price * (couponData.value / 100);
+                } else if (couponData.type === 'fixed') {
+                    discount = couponData.value;
+                }
+                total_price -= discount;
+            }
         }
 
         const nameParts = mainParticipant.name.trim().split(' ');
         const firstName = nameParts.shift();
         const lastName = nameParts.join(' ') || firstName;
 
-        // 1. Cria o documento principal da inscrição
         const inscriptionRef = db.collection('inscriptions').doc();
         const inscriptionId = inscriptionRef.id;
         
-        // 2. Cria um "batch" para salvar todos os bilhetes de uma só vez
         const batch = db.batch();
 
-        // Adiciona o bilhete do comprador principal
         const mainTicketRef = inscriptionRef.collection('tickets').doc();
         batch.set(mainTicketRef, {
             participantName: mainParticipant.name,
@@ -72,7 +88,6 @@ export default async function handler(request, response) {
             status: 'pending'
         });
 
-        // Adiciona os bilhetes dos participantes adicionais
         additionalParticipants.forEach(participant => {
             const additionalTicketRef = inscriptionRef.collection('tickets').doc();
             batch.set(additionalTicketRef, {
@@ -82,17 +97,17 @@ export default async function handler(request, response) {
             });
         });
 
-        // Salva o documento principal
         batch.set(inscriptionRef, {
             mainParticipant,
             ticket_type,
             quantity,
-            total_price: unit_price * quantity,
+            total_price: Math.max(0, total_price), // Garante que o preço não é negativo
+            appliedCoupon: coupon ? coupon.code : null,
+            discountValue: discount,
             paymentStatus: 'pending',
             createdAt: new Date().toISOString(),
         });
 
-        // Executa todas as operações de uma só vez
         await batch.commit();
 
         const result = await preference.create({
@@ -104,7 +119,7 @@ export default async function handler(request, response) {
                     description: `Bilhete de acesso ao evento Resenha Music (${ticket_type})`,
                     category_id: 'tickets',
                     quantity: Number(quantity),
-                    unit_price: unit_price,
+                    unit_price: Math.max(0, total_price / quantity), // O preço unitário é o total com desconto a dividir pela quantidade
                     currency_id: 'BRL',
                 }],
                 payer: {
