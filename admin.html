@@ -279,10 +279,11 @@
 
             inscriptions.forEach(item => {
                 if (item.paymentStatus === 'paid') {
-                    inscriptionsPaidCount++;
-                    if (item.appliedCoupon === 'VOUCHER BLACK') {
+                    // CORRIGIDO: Separa a contagem de vouchers e de inscrições pagas
+                    if (item.appliedCoupon === 'VOUCHER BLACK' || item.total_price === 0) {
                         vouchersApprovedCount += item.quantity;
                     } else {
+                        inscriptionsPaidCount++;
                         revenuePaid += item.total_price;
                     }
                     if (paidTicketTypes.hasOwnProperty(item.ticket_type)) {
