@@ -160,14 +160,13 @@
                     </div>
                 </div>
 
-                <!-- Campo de Cupom -->
                 <div class="mt-8 border-t border-gray-700 pt-6">
                     <label for="coupon" class="block mb-2 text-sm font-medium text-gray-400">Cupom de Desconto</label>
                     <div class="flex space-x-2">
                         <input type="text" id="coupon" name="coupon" class="form-input w-full p-3 uppercase" placeholder="INSIRA O SEU CÓDIGO">
                         <button type="button" id="apply-coupon-btn" class="bg-gray-600 text-white font-semibold px-5 rounded-lg hover:bg-gray-500 transition-colors">Aplicar</button>
                     </div>
-                    <p id="coupon-message" class="text-sm mt-2 h-5"></p> <!-- Espaço para mensagens -->
+                    <p id="coupon-message" class="text-sm mt-2 h-5"></p>
                 </div>
 
                 <div class="mt-4 flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:items-center justify-between border-t border-gray-700 pt-6">
@@ -244,6 +243,7 @@
 
             let currentQuantity = 1;
             let appliedCoupon = null;
+            let isVoucher = false;
 
             function formatCurrency(value) {
                 return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -253,6 +253,7 @@
                 const selectedTicketType = document.querySelector('input[name="ticket_type"]:checked').value;
                 const pricePerTicket = ticketPrices[selectedTicketType];
                 let total = pricePerTicket * currentQuantity;
+                isVoucher = false;
 
                 if (appliedCoupon) {
                     if (appliedCoupon.type === 'percentage') {
@@ -261,8 +262,19 @@
                         total -= appliedCoupon.value;
                     }
                 }
+                
+                total = Math.max(0, total);
+                totalPriceSpan.textContent = formatCurrency(total);
 
-                totalPriceSpan.textContent = formatCurrency(Math.max(0, total));
+                // Muda o texto do botão se o total for zero
+                if (total === 0 && appliedCoupon) {
+                    isVoucher = true;
+                    mainFormButton.textContent = 'Solicitar Inscrição Gratuita';
+                    floatingSubmitButton.textContent = 'Solicitar Inscrição Gratuita';
+                } else {
+                    mainFormButton.textContent = 'Continuar para Pagamento';
+                    floatingSubmitButton.textContent = 'Continuar para Pagamento';
+                }
             }
 
             applyCouponBtn.addEventListener('click', async () => {
@@ -430,8 +442,11 @@
                     coupon: appliedCoupon
                 };
                 
+                // Decide para qual endpoint enviar os dados
+                const endpoint = isVoucher ? '/api/request-voucher-inscription' : '/api/create-preference';
+                
                 try {
-                    const response = await fetch('/api/create-preference', {
+                    const response = await fetch(endpoint, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(submissionData)
@@ -442,14 +457,17 @@
                     if (!response.ok) {
                         throw new Error(responseData.details || responseData.error || 'Falha na comunicação com o servidor');
                     }
-
-                    if (responseData.init_point) {
+                    
+                    if (isVoucher) {
+                        // Se for um voucher, redireciona para uma página de sucesso específica
+                        window.location.href = '/voucher-sucesso.html';
+                    } else if (responseData.init_point) {
                         window.location.href = responseData.init_point;
                     } else {
                         throw new Error('Link de pagamento não recebido.');
                     }
                 } catch (error) {
-                    console.error("Erro ao processar pagamento:", error);
+                    console.error("Erro ao processar:", error);
                     alert(`Ocorreu um erro: ${error.message}`);
                     loadingOverlay.classList.add('hidden');
                     loadingOverlay.classList.remove('flex');
