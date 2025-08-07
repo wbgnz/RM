@@ -25,17 +25,19 @@ export default async function handler(request, response) {
     }
 
     try {
-        const { mainParticipant, additionalParticipants, ticket_type, quantity, coupon } = request.body;
-        if (!mainParticipant || !ticket_type || !quantity || !coupon) {
+        const { mainParticipant, additionalParticipants, quantity, coupon } = request.body;
+        if (!mainParticipant || !quantity || !coupon) {
             return response.status(400).json({ error: 'Faltam dados obrigatórios para a solicitação de voucher.' });
         }
 
-        // Validação de segurança: verifica se o cupão realmente dá 100% de desconto
         const couponRef = db.collection('coupons').doc(coupon.code);
         const doc = await couponRef.get();
         if (!doc.exists || doc.data().type !== 'percentage' || doc.data().value !== 100) {
             return response.status(403).json({ error: 'Este cupão não é válido para inscrição gratuita.' });
         }
+
+        // NOVO: Define o tipo de bilhete como EXTRA VIP para vouchers
+        const ticket_type = 'EXTRA VIP';
 
         const inscriptionRef = db.collection('inscriptions').doc();
         const batch = db.batch();
@@ -58,12 +60,11 @@ export default async function handler(request, response) {
 
         batch.set(inscriptionRef, {
             mainParticipant,
-            ticket_type,
+            ticket_type: ticket_type, // Salva o novo tipo
             quantity,
             total_price: 0,
             appliedCoupon: coupon.code,
-            discountValue: (99.90 * quantity), // Simula o valor do desconto
-            paymentStatus: 'awaiting_approval', // NOVO ESTADO
+            paymentStatus: 'awaiting_approval',
             createdAt: new Date().toISOString(),
         });
 

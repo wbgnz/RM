@@ -65,7 +65,7 @@
             </div>
 
             <div id="dashboard-content">
-                <section class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
+                <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                     <div class="glass-card p-6">
                         <h3 class="text-sm font-medium uppercase text-gray-400">Receita Confirmada</h3>
                         <p id="revenue-paid" class="text-4xl font-bold text-green-400 mt-2">R$ 0,00</p>
@@ -73,6 +73,10 @@
                     <div class="glass-card p-6">
                         <h3 class="text-sm font-medium uppercase text-gray-400">Inscrições Pagas</h3>
                         <p id="inscriptions-paid" class="text-4xl font-bold text-white mt-2">0</p>
+                    </div>
+                    <div class="glass-card p-6">
+                        <h3 class="text-sm font-medium uppercase text-gray-400">Vouchers Aprovados</h3>
+                        <p id="vouchers-approved" class="text-4xl font-bold text-purple-400 mt-2">0</p>
                     </div>
                     <div class="glass-card p-6">
                         <h3 class="text-sm font-medium uppercase text-gray-400">Aguardando Aprovação</h3>
@@ -94,7 +98,7 @@
                         <canvas id="status-chart"></canvas>
                     </div>
                     <div class="glass-card p-6 lg:col-span-3">
-                        <h3 class="text-lg font-semibold text-white mb-4">Tipos de Bilhete (Pagos)</h3>
+                        <h3 class="text-lg font-semibold text-white mb-4">Tipos de Bilhete (Confirmados)</h3>
                         <canvas id="ticket-chart"></canvas>
                     </div>
                 </section>
@@ -113,7 +117,7 @@
                                     <th class="p-4">WhatsApp</th>
                                     <th class="p-4 text-center">Qtd.</th>
                                     <th class="p-4">Tipo</th>
-                                    <th class="p-4">Meio de Pagamento</th>
+                                    <th class="p-4">Cupom</th>
                                     <th class="p-4">Estado</th>
                                     <th class="p-4">Ações</th>
                                 </tr>
@@ -157,7 +161,7 @@
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error || 'Falha ao regenerar');
                     alert(data.message);
-                    location.reload(); // Recarrega a página para atualizar os dados
+                    location.reload();
                 } catch (error) {
                     alert(`Erro: ${error.message}`);
                 } finally {
@@ -225,7 +229,6 @@
                             });
                             const data = await response.json();
                             if (response.ok && data.success) {
-                                // Atualiza a linha na tabela para refletir o novo estado
                                 row.querySelector('.status-cell').innerHTML = `<span class="px-2 py-1 rounded-full text-xs font-semibold bg-green-500/20 text-green-400">PAGO</span>`;
                                 target.parentElement.innerHTML = `<button data-id="${inscriptionId}" class="generate-link-btn bg-blue-500/80 text-white text-xs font-bold py-2 px-3 rounded-lg hover:bg-blue-500">Ver Bilhete</button>`;
                             } else {
@@ -269,15 +272,22 @@
             const inscriptionsPendingEl = document.getElementById('inscriptions-pending');
             const inscriptionsAwaitingEl = document.getElementById('inscriptions-awaiting');
             const inscriptionsTotalEl = document.getElementById('inscriptions-total');
+            const vouchersApprovedEl = document.getElementById('vouchers-approved');
             
-            let revenuePaid = 0, inscriptionsPaidCount = 0, inscriptionsPendingCount = 0, awaitingApprovalCount = 0;
-            let paidTicketTypes = { pista: 0, vip: 0 };
+            let revenuePaid = 0, inscriptionsPaidCount = 0, inscriptionsPendingCount = 0, awaitingApprovalCount = 0, vouchersApprovedCount = 0;
+            let paidTicketTypes = { pista: 0, vip: 0, 'EXTRA VIP': 0 };
 
             inscriptions.forEach(item => {
                 if (item.paymentStatus === 'paid') {
                     inscriptionsPaidCount++;
-                    revenuePaid += item.total_price;
-                    paidTicketTypes[item.ticket_type] += item.quantity;
+                    if (item.appliedCoupon === 'VOUCHER BLACK') {
+                        vouchersApprovedCount += item.quantity;
+                    } else {
+                        revenuePaid += item.total_price;
+                    }
+                    if (paidTicketTypes.hasOwnProperty(item.ticket_type)) {
+                        paidTicketTypes[item.ticket_type] += item.quantity;
+                    }
                 } else if (item.paymentStatus === 'pending') {
                     inscriptionsPendingCount++;
                 } else if (item.paymentStatus === 'awaiting_approval') {
@@ -290,13 +300,14 @@
             inscriptionsPendingEl.textContent = inscriptionsPendingCount;
             inscriptionsAwaitingEl.textContent = awaitingApprovalCount;
             inscriptionsTotalEl.textContent = inscriptions.length;
+            vouchersApprovedEl.textContent = vouchersApprovedCount;
 
             const tableBody = document.getElementById('inscriptions-table-body');
             tableBody.innerHTML = '';
             inscriptions.forEach(item => {
                 let statusClass = '';
                 let statusText = '';
-                let paymentMethod = item.paymentMethod ? item.paymentMethod.toUpperCase() : (item.appliedCoupon || 'N/A');
+                let couponText = item.appliedCoupon || 'N/A';
                 let actionsHtml = '';
 
                 switch(item.paymentStatus) {
@@ -328,7 +339,7 @@
                         <td class="p-4 text-gray-400">${item.mainParticipant.whatsapp}</td>
                         <td class="p-4 text-gray-400 text-center">${item.quantity}</td>
                         <td class="p-4 text-gray-400 uppercase">${item.ticket_type}</td>
-                        <td class="p-4 text-gray-400">${paymentMethod}</td>
+                        <td class="p-4 text-gray-400">${couponText}</td>
                         <td class="p-4 status-cell"><span class="px-2 py-1 rounded-full text-xs font-semibold ${statusClass}">${statusText}</span></td>
                         <td class="p-4 flex space-x-2">
                             <a href="${whatsappLink}" target="_blank" class="bg-gray-600 text-white text-xs font-bold py-2 px-3 rounded-lg hover:bg-gray-500">Conversar</a>
@@ -362,11 +373,11 @@
             new Chart(ticketCtx, {
                 type: 'bar',
                 data: {
-                    labels: ['Pista', 'VIP'],
+                    labels: ['Pista', 'VIP', 'EXTRA VIP'],
                     datasets: [{
-                        label: 'Bilhetes Pagos',
-                        data: [paidTicketTypes.pista, paidTicketTypes.vip],
-                        backgroundColor: ['#3b82f6', '#8b5cf6'],
+                        label: 'Bilhetes Confirmados',
+                        data: [paidTicketTypes.pista, paidTicketTypes.vip, paidTicketTypes['EXTRA VIP']],
+                        backgroundColor: ['#3b82f6', '#8b5cf6', '#a855f7'],
                         borderRadius: 8,
                     }]
                 },
