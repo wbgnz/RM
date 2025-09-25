@@ -20,6 +20,10 @@
             border-radius: 24px;
             border: 4px dashed rgba(255, 255, 255, 0.3);
         }
+        .tab-button.active {
+            background-color: #333336;
+            color: #f5f5f7;
+        }
     </style>
 </head>
 <body class="bg-black">
@@ -36,21 +40,38 @@
     </div>
 
     <div id="validator-screen" class="hidden">
-        <header class="p-4 flex justify-between items-center border-b border-gray-800">
-            <h1 class="text-xl font-bold">Validador de Bilhetes</h1>
+        <header class="p-4 flex justify-between items-center border-b border-gray-800 sticky top-0 bg-black/80 backdrop-blur-sm z-10">
+            <h1 class="text-xl font-bold">Validador</h1>
             <button id="logout-button" class="text-sm text-red-500 hover:text-red-400 font-semibold">Sair</button>
         </header>
-        <main class="p-4">
-            <p class="text-center text-gray-400 mb-4">Aponte a câmara para o QR Code do bilhete.</p>
-            <div id="qr-reader" class="w-full max-w-lg mx-auto"></div>
-        </main>
+
+        <div class="p-4">
+            <div class="flex space-x-2 bg-[#1c1c1e] p-1 rounded-lg max-w-md mx-auto mb-6">
+                <button id="tab-scanner" class="tab-button active w-full py-2 px-4 rounded-md text-sm font-semibold transition-colors">Scanner</button>
+                <button id="tab-list" class="tab-button w-full py-2 px-4 rounded-md text-sm font-semibold text-gray-400 transition-colors">
+                    Lista de Entradas <span id="checked-in-count" class="bg-blue-600 text-white text-xs font-bold rounded-full px-2 py-0.5 ml-2">0</span>
+                </button>
+            </div>
+
+            <main id="scanner-view">
+                <p class="text-center text-gray-400 mb-4">Aponte a câmara para o QR Code do bilhete.</p>
+                <div id="qr-reader" class="w-full max-w-lg mx-auto"></div>
+            </main>
+
+            <main id="list-view" class="hidden">
+                <div id="checked-in-list" class="space-y-3 max-w-lg mx-auto">
+                    <!-- A lista de entradas será inserida aqui -->
+                </div>
+            </main>
+        </div>
     </div>
 
     <!-- Ecrã de Resultado (Modal) -->
     <div id="result-modal" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center p-4 text-center">
         <div class="max-w-md w-full">
             <h2 id="result-message" class="text-4xl font-bold mb-4"></h2>
-            <p id="participant-name" class="text-2xl mb-8"></p>
+            <p id="participant-name" class="text-2xl mb-2"></p>
+            <p id="ticket-type" class="text-xl font-semibold uppercase bg-black/20 px-4 py-1 rounded-full inline-block mb-8"></p>
             <button id="ok-button" class="w-full bg-white text-black font-bold text-xl py-4 rounded-lg">OK</button>
         </div>
     </div>
@@ -67,58 +88,110 @@
             const resultModal = document.getElementById('result-modal');
             const resultMessage = document.getElementById('result-message');
             const participantNameEl = document.getElementById('participant-name');
+            const ticketTypeEl = document.getElementById('ticket-type');
             const okButton = document.getElementById('ok-button');
+            
+            const tabScanner = document.getElementById('tab-scanner');
+            const tabList = document.getElementById('tab-list');
+            const scannerView = document.getElementById('scanner-view');
+            const listView = document.getElementById('list-view');
+            const checkedInListEl = document.getElementById('checked-in-list');
+            const checkedInCountEl = document.getElementById('checked-in-count');
 
             let html5QrCode;
             let audioCtx;
+            
+            async function fetchAndRenderCheckedInList() {
+                checkedInListEl.innerHTML = '<p class="text-center text-gray-500">A carregar lista...</p>';
+                try {
+                    // ATUALIZADO: Chama o endpoint correto
+                    const response = await fetch('/api/validate-ticket');
+                    if (!response.ok) {
+                        throw new Error('Falha ao carregar a lista de entradas.');
+                    }
+                    const checkedInParticipants = await response.json();
+                    
+                    checkedInListEl.innerHTML = '';
+                    if (checkedInParticipants.length === 0) {
+                        checkedInListEl.innerHTML = '<p class="text-center text-gray-500">Nenhuma entrada registada ainda.</p>';
+                    } else {
+                        checkedInParticipants.forEach(p => {
+                            const item = document.createElement('div');
+                            item.className = 'bg-gray-800 p-3 rounded-lg flex justify-between items-center';
+                            item.innerHTML = `
+                                <div>
+                                    <p class="font-semibold text-white">${p.name}</p>
+                                    <p class="text-xs text-gray-400 uppercase">${p.type}</p>
+                                </div>
+                                <p class="text-sm text-gray-500">${p.time}</p>
+                            `;
+                            checkedInListEl.appendChild(item);
+                        });
+                    }
+                    checkedInCountEl.textContent = checkedInParticipants.length;
+
+                } catch (error) {
+                    console.error(error);
+                    checkedInListEl.innerHTML = `<p class="text-center text-red-500">${error.message}</p>`;
+                }
+            }
+            
+            tabScanner.addEventListener('click', () => {
+                scannerView.classList.remove('hidden');
+                listView.classList.add('hidden');
+                tabScanner.classList.add('active');
+                tabList.classList.remove('active');
+                tabList.classList.add('text-gray-400');
+                if (html5QrCode && html5QrCode.isScanning) html5QrCode.resume();
+            });
+
+            tabList.addEventListener('click', () => {
+                scannerView.classList.add('hidden');
+                listView.classList.remove('hidden');
+                tabScanner.classList.remove('active');
+                tabList.classList.add('active');
+                tabList.classList.remove('text-gray-400');
+                if (html5QrCode && html5QrCode.isScanning) html5QrCode.pause(true);
+                fetchAndRenderCheckedInList();
+            });
 
             function playBeep(success = true) {
-                if (!audioCtx) {
+                 if (!audioCtx) {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 }
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
-                
                 oscillator.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
-                
                 gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
                 gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.01);
-
                 oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(success ? 880 : 440, audioCtx.currentTime); // A5 for success, A4 for error
-                
+                oscillator.frequency.setValueAtTime(success ? 880 : 440, audioCtx.currentTime);
                 oscillator.start(audioCtx.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.2);
                 oscillator.stop(audioCtx.currentTime + 0.2);
             }
 
-            function showResult(status, message, participantName = '') {
-                html5QrCode.pause(true); // Pausa o scanner
+            function showResult(status, message, participantName = '', ticketType = '') {
+                html5QrCode.pause(true); 
                 resultMessage.textContent = message;
                 participantNameEl.textContent = participantName;
+                ticketTypeEl.textContent = ticketType;
                 
                 resultModal.classList.remove('hidden', 'bg-green-500', 'bg-red-500', 'bg-yellow-500');
                 
-                switch (status) {
-                    case 'success':
-                        resultModal.classList.add('bg-green-500');
-                        playBeep(true);
-                        break;
-                    case 'already_used':
-                        resultModal.classList.add('bg-yellow-500');
-                        playBeep(false);
-                        break;
-                    default:
-                        resultModal.classList.add('bg-red-500');
-                        playBeep(false);
-                        break;
+                if (status === 'success') {
+                    resultModal.classList.add('bg-green-500');
+                    playBeep(true);
+                } else {
+                    playBeep(false);
+                    resultModal.classList.add(status === 'already_used' ? 'bg-yellow-500' : 'bg-red-500');
                 }
             }
 
             okButton.addEventListener('click', () => {
                 resultModal.classList.add('hidden');
-                if (html5QrCode && html5QrCode.isScanning) {
+                if (!scannerView.classList.contains('hidden') && html5QrCode && html5QrCode.isScanning) {
                     html5QrCode.resume();
                 }
             });
@@ -131,7 +204,7 @@
                         body: JSON.stringify({ ticketId: decodedText })
                     });
                     const data = await response.json();
-                    showResult(data.status, data.message, data.participantName);
+                    showResult(data.status, data.message, data.participantName, data.ticketType);
                 } catch (error) {
                     showResult('error', 'Erro de comunicação com o servidor.');
                 }
@@ -165,6 +238,7 @@
                 const password = passwordInput.value;
                 
                 try {
+                    // ATUALIZADO: Chama o endpoint de login correto
                     const response = await fetch('/api/admin-login', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
