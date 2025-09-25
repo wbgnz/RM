@@ -27,13 +27,28 @@ export default async function handler(request, response) {
     }
 
     try {
-        const { ticketId } = request.body;
-        if (!ticketId) {
+        const { ticketId: rawTicketId } = request.body;
+        if (!rawTicketId) {
             return response.status(400).json({ status: 'error', message: 'O ID do bilhete não foi fornecido.' });
         }
 
+        let ticketId = rawTicketId;
+
+        // ETAPA DE LIMPEZA: Verifica se o QR Code é um URL e extrai o ID
+        try {
+            if (rawTicketId.includes('http')) {
+                const url = new URL(rawTicketId);
+                const idFromParam = url.searchParams.get('id');
+                if (!idFromParam) {
+                    throw new Error('Parâmetro "id" não encontrado no URL do QR Code.');
+                }
+                ticketId = idFromParam;
+            }
+        } catch (e) {
+             return response.status(400).json({ status: 'invalid', message: `Formato de QR Code inválido. Não foi possível extrair o ID. Detalhes: ${e.message}` });
+        }
+
         // --- LÓGICA DE COMPATIBILIDADE ---
-        // Verifica se o QR Code está no formato novo (com '_') ou antigo
         if (ticketId.includes('_')) {
             // Lógica para o formato novo (inscriptionId_singleTicketId)
             const [inscriptionId, singleTicketId] = ticketId.split('_');
@@ -64,17 +79,14 @@ export default async function handler(request, response) {
 
             const inscriptionData = inscriptionDoc.data();
             
-            // Verifica se a inscrição principal está paga
             if (inscriptionData.paymentStatus !== 'paid') {
                  return response.status(403).json({ status: 'not_paid', message: 'Este bilhete não está pago.', participantName: inscriptionData.mainParticipant.name });
             }
 
-            // Verifica se a inscrição principal já foi utilizada para check-in
             if (inscriptionData.isCheckedIn) {
                 return response.status(409).json({ status: 'already_used', message: `BILHETE JÁ UTILIZADO em ${new Date(inscriptionData.checkedInAt).toLocaleString('pt-BR')}.`, participantName: inscriptionData.mainParticipant.name });
             }
 
-            // Marca a inscrição principal como utilizada
             await inscriptionRef.update({ isCheckedIn: true, checkedInAt: new Date().toISOString() });
             return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA', participantName: inscriptionData.mainParticipant.name, ticketType: inscriptionData.ticket_type });
         }
