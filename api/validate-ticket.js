@@ -18,6 +18,21 @@ try {
 }
 // -----------------------------------------
 
+async function findTicketExhaustively(ticketId) {
+    const inscriptionsSnapshot = await db.collection('inscriptions').get();
+    for (const inscDoc of inscriptionsSnapshot.docs) {
+        const ticketRef = inscDoc.ref.collection('tickets').doc(ticketId);
+        const ticketDoc = await ticketRef.get();
+        if (ticketDoc.exists) {
+            return {
+                ticketDoc: ticketDoc,
+                inscriptionDoc: inscDoc
+            };
+        }
+    }
+    return null;
+}
+
 export default async function handler(request, response) {
     if (firebaseInitializationError) {
         return response.status(500).json({ status: 'error', message: 'Falha na inicialização do servidor.' });
@@ -33,82 +48,70 @@ export default async function handler(request, response) {
         }
 
         let ticketId = rawTicketId;
+        let inscriptionId = null;
 
-        // ETAPA DE LIMPEZA: Verifica se o QR Code é um URL e extrai o ID
+        // ETAPA DE LIMPEZA E EXTRAÇÃO
         try {
             if (rawTicketId.includes('http')) {
                 const url = new URL(rawTicketId);
-                const idFromParam = url.searchParams.get('id');
-                if (!idFromParam) {
-                    throw new Error('Parâmetro "id" não encontrado no URL do QR Code.');
-                }
-                ticketId = idFromParam;
+                ticketId = url.searchParams.get('id');
+                if (!ticketId) throw new Error('Parâmetro "id" não encontrado no URL.');
             }
         } catch (e) {
-             return response.status(400).json({ status: 'invalid', message: `Formato de QR Code inválido. Não foi possível extrair o ID. Detalhes: ${e.message}` });
+             return response.status(400).json({ status: 'invalid', message: `Formato de QR Code inválido: ${e.message}` });
+        }
+        
+        if (ticketId.includes('_')) {
+            [inscriptionId, ticketId] = ticketId.split('_');
         }
 
-        // --- LÓGICA DE COMPATIBILIDADE ---
-        if (ticketId.includes('_')) {
-            // Lógica para o formato novo (inscriptionId_singleTicketId)
-            const [inscriptionId, singleTicketId] = ticketId.split('_');
-            const ticketRef = db.collection('inscriptions').doc(inscriptionId).collection('tickets').doc(singleTicketId);
-            const ticketDoc = await ticketRef.get();
+        let ticketDoc, inscriptionDoc;
 
-            if (!ticketDoc.exists) {
-                return response.status(404).json({ status: 'invalid', message: `Bilhete (novo) não encontrado para o ID: ${ticketId}` });
+        // Tenta encontrar pelo caminho direto (formato novo)
+        if (inscriptionId) {
+            const ticketRef = db.collection('inscriptions').doc(inscriptionId).collection('tickets').doc(ticketId);
+            ticketDoc = await ticketRef.get();
+            if(ticketDoc.exists) {
+                inscriptionDoc = await ticketRef.parent.parent.get();
             }
-
-            const ticketData = ticketDoc.data();
-            if (ticketData.isCheckedIn) {
-                return response.status(409).json({ status: 'already_used', message: `BILHETE JÁ UTILIZADO em ${new Date(ticketData.checkedInAt).toLocaleString('pt-BR')}.`, participantName: ticketData.participantName });
-            }
-
-            await ticketRef.update({ isCheckedIn: true, checkedInAt: new Date().toISOString() });
-            return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA', participantName: ticketData.participantName, ticketType: ticketData.ticketType });
-
         } else {
-            // Lógica de fallback para o formato antigo (apenas inscriptionId)
+             // Tenta encontrar como inscrição principal (formato antigo)
             const inscriptionRef = db.collection('inscriptions').doc(ticketId);
-            const inscriptionDoc = await inscriptionRef.get();
-
-            if (inscriptionDoc.exists) {
-                const inscriptionData = inscriptionDoc.data();
-                if (inscriptionData.paymentStatus !== 'paid') {
-                     return response.status(403).json({ status: 'not_paid', message: 'Este bilhete não está pago.', participantName: inscriptionData.mainParticipant.name });
-                }
-                if (inscriptionData.isCheckedIn) {
-                    return response.status(409).json({ status: 'already_used', message: `BILHETE (ANTIGO) JÁ UTILIZADO em ${new Date(inscriptionData.checkedInAt).toLocaleString('pt-BR')}.`, participantName: inscriptionData.mainParticipant.name });
-                }
-                await inscriptionRef.update({ isCheckedIn: true, checkedInAt: new Date().toISOString() });
-                return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA (Formato Antigo)', participantName: inscriptionData.mainParticipant.name, ticketType: inscriptionData.ticket_type });
+            inscriptionDoc = await inscriptionRef.get();
+            if(inscriptionDoc.exists){
+                 // Se for formato antigo, a inscrição é o próprio bilhete
+                 ticketDoc = inscriptionDoc;
             }
-
-            // Lógica de fallback para o formato com apenas o ID do bilhete individual
-            const ticketsQuery = db.collectionGroup('tickets').where('__name__', '==', `inscriptions/${ticketId.substring(0,20)}/tickets/${ticketId}`);
-            const querySnapshot = await ticketsQuery.get();
-
-            if (!querySnapshot.empty) {
-                const ticketDoc = querySnapshot.docs[0];
-                const ticketData = ticketDoc.data();
-                const ticketRef = ticketDoc.ref;
-
-                const parentInscriptionDoc = await ticketRef.parent.parent.get();
-                if (!parentInscriptionDoc.exists || parentInscriptionDoc.data().paymentStatus !== 'paid') {
-                     return response.status(403).json({ status: 'not_paid', message: 'A compra deste bilhete não foi paga.', participantName: ticketData.participantName });
-                }
-
-                if (ticketData.isCheckedIn) {
-                    return response.status(409).json({ status: 'already_used', message: `BILHETE JÁ UTILIZADO em ${new Date(ticketData.checkedInAt).toLocaleString('pt-BR')}.`, participantName: ticketData.participantName });
-                }
-
-                await ticketRef.update({ isCheckedIn: true, checkedInAt: new Date().toISOString() });
-                return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA', participantName: ticketData.participantName, ticketType: ticketData.ticketType });
+        }
+        
+        // Se não encontrou, faz a pesquisa exaustiva
+        if (!ticketDoc || !ticketDoc.exists) {
+            const result = await findTicketExhaustively(ticketId);
+            if (result) {
+                ticketDoc = result.ticketDoc;
+                inscriptionDoc = result.inscriptionDoc;
             }
-            
-            // Se chegámos aqui, o ID não foi encontrado em nenhum formato.
+        }
+        
+        // Se ainda assim não encontrou, o bilhete não existe
+        if (!ticketDoc || !ticketDoc.exists) {
             return response.status(404).json({ status: 'invalid', message: `Bilhete não encontrado para o ID: ${ticketId}` });
         }
+
+        const ticketData = ticketDoc.data();
+        const inscriptionData = inscriptionDoc.data();
+        const participantName = ticketData.participantName || inscriptionData.mainParticipant.name;
+        const ticketType = ticketData.ticketType || inscriptionData.ticket_type;
+
+        if (inscriptionData.paymentStatus !== 'paid') {
+            return response.status(403).json({ status: 'not_paid', message: 'Este bilhete não está pago.', participantName });
+        }
+        if (ticketData.isCheckedIn) {
+            return response.status(409).json({ status: 'already_used', message: `BILHETE JÁ UTILIZADO em ${new Date(ticketData.checkedInAt).toLocaleString('pt-BR')}.`, participantName });
+        }
+
+        await ticketDoc.ref.update({ isCheckedIn: true, checkedInAt: new Date().toISOString() });
+        return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA', participantName, ticketType });
 
     } catch (error) {
         console.error("[VALIDADOR] ERRO FATAL:", error);
