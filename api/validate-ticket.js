@@ -33,20 +33,28 @@ export default async function handler(request, response) {
                 return response.status(200).json([]);
             }
 
-            const checkedInList = [];
+            let checkedInList = [];
             querySnapshot.forEach(doc => {
                 const data = doc.data();
+                // Adicionamos o timestamp original para podermos ordenar
                 checkedInList.push({
                     name: data.participantName,
                     type: data.ticketType,
-                    time: new Date(data.checkedInAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                    checkedInAt: data.checkedInAt // Timestamp completo
                 });
             });
 
-            // Ordena pela hora, do mais recente para o mais antigo
+            // Ordena pela data, do mais recente para o mais antigo
             checkedInList.sort((a, b) => new Date(b.checkedInAt) - new Date(a.checkedInAt));
+            
+            // Formata a data para a exibição final *depois* de ordenar
+            const formattedList = checkedInList.map(item => ({
+                name: item.name,
+                type: item.type,
+                time: new Date(item.checkedInAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+            }));
 
-            return response.status(200).json(checkedInList);
+            return response.status(200).json(formattedList);
 
         } catch (error) {
             console.error("Erro ao buscar a lista de entradas:", error);
@@ -64,8 +72,7 @@ export default async function handler(request, response) {
 
             let ticketId = rawTicketId;
 
-            // ... (Lógica de validação do bilhete mantida) ...
-            // (O restante do código de validação que já funcionava permanece aqui)
+            // ETAPA DE LIMPEZA: Verifica se o QR Code é um URL e extrai o ID
              try {
                 if (rawTicketId.includes('http')) {
                     const url = new URL(rawTicketId);
@@ -79,7 +86,9 @@ export default async function handler(request, response) {
                  return response.status(400).json({ status: 'invalid', message: `Formato de QR Code inválido. Não foi possível extrair o ID. Detalhes: ${e.message}` });
             }
 
+            // --- LÓGICA DE COMPATIBILIDADE ---
             if (ticketId.includes('_')) {
+                // Lógica para o formato novo (inscriptionId_singleTicketId)
                 const [inscriptionId, singleTicketId] = ticketId.split('_');
                 const ticketRef = db.collection('inscriptions').doc(inscriptionId).collection('tickets').doc(singleTicketId);
                 const ticketDoc = await ticketRef.get();
@@ -97,6 +106,7 @@ export default async function handler(request, response) {
                 return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA', participantName: ticketData.participantName, ticketType: ticketData.ticketType });
 
             } else {
+                // Lógica de fallback para o formato antigo (apenas inscriptionId)
                 const inscriptionRef = db.collection('inscriptions').doc(ticketId);
                 const inscriptionDoc = await inscriptionRef.get();
 
@@ -112,6 +122,7 @@ export default async function handler(request, response) {
                     return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA (Formato Antigo)', participantName: inscriptionData.mainParticipant.name, ticketType: inscriptionData.ticket_type });
                 }
 
+                // Lógica de fallback final: Pesquisa exaustiva
                 const inscriptionsSnapshot = await db.collection('inscriptions').get();
                 for (const inscDoc of inscriptionsSnapshot.docs) {
                     const ticketRef = inscDoc.ref.collection('tickets').doc(ticketId);
@@ -142,7 +153,6 @@ export default async function handler(request, response) {
         }
     }
 
-    // Se o método não for GET nem POST, devolve um erro.
     return response.status(405).json({ status: 'error', message: 'Método não permitido.' });
 }
 
