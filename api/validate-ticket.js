@@ -27,17 +27,18 @@ export default async function handler(request, response) {
     }
 
     const { ticketId } = request.body;
+    console.log("A validar ID do bilhete recebido:", ticketId); // Log para depuração
 
     if (!ticketId) {
         return response.status(400).json({ error: 'O ID do bilhete é obrigatório.' });
     }
 
     try {
-        // O ID do bilhete contém o ID da inscrição e o ID do bilhete, separados por '_'
         const [inscriptionId, singleTicketId] = ticketId.split('_');
 
         if (!inscriptionId || !singleTicketId) {
-             return response.status(400).json({ error: 'Formato de ID de bilhete inválido.' });
+            console.error("Formato de ID inválido:", ticketId);
+            return response.status(400).json({ error: 'Formato de ID de bilhete inválido.' });
         }
 
         const ticketRef = db.collection('inscriptions').doc(inscriptionId).collection('tickets').doc(singleTicketId);
@@ -60,7 +61,6 @@ export default async function handler(request, response) {
             });
         }
 
-        // Se o bilhete é válido e não foi utilizado, fazemos o check-in
         await ticketRef.update({
             isCheckedIn: true,
             checkedInAt: new Date().toISOString()
@@ -74,10 +74,12 @@ export default async function handler(request, response) {
         });
 
     } catch (error) {
-        console.error("Erro ao validar bilhete:", error);
+        console.error("Erro detalhado ao validar bilhete:", error);
         return response.status(500).json({ 
             status: 'error',
-            message: 'Ocorreu um erro no servidor ao validar o bilhete.' 
+            // ATUALIZADO: Devolve uma mensagem de erro mais detalhada
+            message: `Ocorreu um erro no servidor. Detalhes: ${error.message}` 
         });
     }
 }
+
