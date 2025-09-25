@@ -56,21 +56,27 @@ export default async function handler(request, response) {
             // Lógica de fallback para o formato antigo (apenas inscriptionId)
             const inscriptionId = ticketId;
             const inscriptionRef = db.collection('inscriptions').doc(inscriptionId);
-            const ticketsSnapshot = await inscriptionRef.collection('tickets').limit(1).get();
+            const inscriptionDoc = await inscriptionRef.get();
 
-            if (ticketsSnapshot.empty) {
+            if (!inscriptionDoc.exists) {
                 return response.status(404).json({ status: 'invalid', message: 'Bilhete (formato antigo) não encontrado.' });
             }
 
-            const firstTicketDoc = ticketsSnapshot.docs[0];
-            const firstTicketData = firstTicketDoc.data();
-
-            if (firstTicketData.isCheckedIn) {
-                return response.status(409).json({ status: 'already_used', message: `BILHETE JÁ UTILIZADO em ${new Date(firstTicketData.checkedInAt).toLocaleString('pt-BR')}.`, participantName: firstTicketData.participantName });
+            const inscriptionData = inscriptionDoc.data();
+            
+            // Verifica se a inscrição principal está paga
+            if (inscriptionData.paymentStatus !== 'paid') {
+                 return response.status(403).json({ status: 'not_paid', message: 'Este bilhete não está pago.', participantName: inscriptionData.mainParticipant.name });
             }
 
-            await firstTicketDoc.ref.update({ isCheckedIn: true, checkedInAt: new Date().toISOString() });
-            return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA', participantName: firstTicketData.participantName, ticketType: firstTicketData.ticketType });
+            // Verifica se a inscrição principal já foi utilizada para check-in
+            if (inscriptionData.isCheckedIn) {
+                return response.status(409).json({ status: 'already_used', message: `BILHETE JÁ UTILIZADO em ${new Date(inscriptionData.checkedInAt).toLocaleString('pt-BR')}.`, participantName: inscriptionData.mainParticipant.name });
+            }
+
+            // Marca a inscrição principal como utilizada
+            await inscriptionRef.update({ isCheckedIn: true, checkedInAt: new Date().toISOString() });
+            return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA', participantName: inscriptionData.mainParticipant.name, ticketType: inscriptionData.ticket_type });
         }
 
     } catch (error) {
