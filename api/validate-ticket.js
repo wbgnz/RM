@@ -56,7 +56,7 @@ export default async function handler(request, response) {
             const ticketDoc = await ticketRef.get();
 
             if (!ticketDoc.exists) {
-                return response.status(404).json({ status: 'invalid', message: 'Bilhete (novo formato) não encontrado.' });
+                return response.status(404).json({ status: 'invalid', message: `Bilhete (novo) não encontrado para o ID: ${ticketId}` });
             }
 
             const ticketData = ticketDoc.data();
@@ -74,7 +74,7 @@ export default async function handler(request, response) {
             const inscriptionDoc = await inscriptionRef.get();
 
             if (!inscriptionDoc.exists) {
-                return response.status(404).json({ status: 'invalid', message: 'Bilhete (formato antigo) não encontrado.' });
+                return response.status(404).json({ status: 'invalid', message: `Bilhete (antigo) não encontrado para o ID: ${inscriptionId}` });
             }
 
             const inscriptionData = inscriptionDoc.data();
