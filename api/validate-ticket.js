@@ -1,5 +1,5 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore, FieldPath } from 'firebase-admin/firestore';
+import { getFirestore } from 'firebase-admin/firestore';
 
 // --- Configuração do Firebase Admin ---
 let db;
@@ -85,7 +85,7 @@ export default async function handler(request, response) {
             }
 
             // Lógica de fallback para o formato com apenas o ID do bilhete individual
-            const ticketsQuery = db.collectionGroup('tickets').where(FieldPath.documentId(), '==', ticketId);
+            const ticketsQuery = db.collectionGroup('tickets').where('__name__', '==', `inscriptions/${ticketId.substring(0,20)}/tickets/${ticketId}`);
             const querySnapshot = await ticketsQuery.get();
 
             if (!querySnapshot.empty) {
