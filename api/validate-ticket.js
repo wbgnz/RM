@@ -46,15 +46,25 @@ export default async function handler(request, response) {
                 }
             });
 
-            // Ordena pela data, do mais recente para o mais antigo
-            checkedInList.sort((a, b) => new Date(b.checkedInAt) - new Date(a.checkedInAt));
+            // Ordena pela data, do mais recente para o mais antigo (de forma mais segura)
+            checkedInList.sort((a, b) => {
+                const dateA = new Date(a.checkedInAt);
+                const dateB = new Date(b.checkedInAt);
+                // Trata datas inválidas como as mais antigas para evitar erros
+                if (isNaN(dateA.getTime())) return 1;
+                if (isNaN(dateB.getTime())) return -1;
+                return dateB - dateA;
+            });
             
             // Formata a data para a exibição final *depois* de ordenar
-            const formattedList = checkedInList.map(item => ({
-                name: item.name,
-                type: item.type,
-                time: new Date(item.checkedInAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-            }));
+            const formattedList = checkedInList.map(item => {
+                const checkedInDate = new Date(item.checkedInAt);
+                return {
+                    name: item.name,
+                    type: item.type,
+                    time: !isNaN(checkedInDate.getTime()) ? checkedInDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'N/A'
+                }
+            });
 
             return response.status(200).json(formattedList);
 
