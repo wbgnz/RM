@@ -22,7 +22,7 @@
             background-color: #10B981; /* Verde */
             color: white;
         }
-        .status-invalid, .status-already_used, .status-error {
+        .status-invalid, .status-already_used, .status-error, .status-not_paid {
             background-color: #EF4444; /* Vermelho */
             color: white;
         }
@@ -64,10 +64,11 @@
                 const password = adminPasswordInput.value;
                 
                 try {
-                    const response = await fetch('/api/admin', {
+                    // CORRIGIDO: Aponta para o endpoint de login correto
+                    const response = await fetch('/api/admin-login', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'login', password: password })
+                        body: JSON.stringify({ password: password })
                     });
                     const data = await response.json();
                     if (response.ok && data.success) {
@@ -125,7 +126,7 @@
 
                 setTimeout(() => {
                     resultContainer.classList.add('hidden');
-                    if(html5QrCode.getState() === 2) { // 2 = PAUSED
+                    if(html5QrCode && html5QrCode.getState() === 2) { // 2 = PAUSED
                        html5QrCode.resume();
                     }
                 }, 4000); // Mostra o resultado por 4 segundos
