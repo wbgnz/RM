@@ -14,92 +14,116 @@
             color: #f5f5f7;
         }
         #qr-reader {
-            border: 2px solid #333;
-            border-radius: 12px;
-            overflow: hidden;
+            border: none;
         }
-        .status-success {
-            background-color: #10B981; /* Verde */
-            color: white;
-        }
-        .status-invalid, .status-already_used, .status-error, .status-not_paid {
-            background-color: #EF4444; /* Vermelho */
-            color: white;
+        #qr-reader__scan_region {
+            border-radius: 24px;
+            border: 4px dashed rgba(255, 255, 255, 0.3);
         }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
+<body class="bg-black">
 
-    <!-- Ecrã de Login -->
-    <div id="login-screen" class="w-full max-w-sm mx-auto">
-        <div class="bg-[#1c1c1e] p-8 rounded-2xl shadow-lg border border-gray-700">
-            <img src="https://raw.githubusercontent.com/wbgnz/BDIMG/main/resenha.jpeg" alt="Logo Resenha Music" class="h-12 mx-auto mb-6">
-            <h1 class="text-2xl font-bold text-center text-white mb-6">Acesso Restrito</h1>
+    <div id="login-screen" class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-sm">
+            <h1 class="text-3xl font-bold text-center mb-6">Acesso Restrito</h1>
             <form id="login-form">
-                <input type="password" id="admin-password" placeholder="Digite a senha" class="w-full bg-[#333] p-3 rounded-lg text-white border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg mt-4 hover:bg-blue-500 transition-colors">Entrar</button>
+                <input type="password" id="password" class="w-full bg-gray-800 text-white p-4 rounded-lg mb-4 border border-gray-700 focus:outline-none focus:border-blue-500" placeholder="Senha de Administrador" required>
+                <button type="submit" class="w-full bg-blue-600 text-white font-semibold p-4 rounded-lg hover:bg-blue-500 transition-colors">Entrar</button>
             </form>
+            <p id="login-error" class="text-red-500 text-center mt-4 hidden"></p>
         </div>
     </div>
 
-    <!-- Ecrã do Validador -->
-    <div id="validator-screen" class="hidden w-full max-w-md mx-auto">
-        <h1 class="text-3xl font-bold text-center text-white mb-4">Validador de Bilhetes</h1>
-        <p class="text-center text-gray-400 mb-6">Aponte a câmara para o QR Code do bilhete.</p>
-        <div id="qr-reader" class="w-full"></div>
-        <div id="result-container" class="mt-6 p-4 rounded-lg text-center font-bold text-lg hidden"></div>
+    <div id="validator-screen" class="hidden">
+        <header class="p-4 flex justify-between items-center border-b border-gray-800">
+            <h1 class="text-xl font-bold">Validador de Bilhetes</h1>
+            <button id="logout-button" class="text-sm text-red-500 hover:text-red-400 font-semibold">Sair</button>
+        </header>
+        <main class="p-4">
+            <p class="text-center text-gray-400 mb-4">Aponte a câmara para o QR Code do bilhete.</p>
+            <div id="qr-reader" class="w-full max-w-lg mx-auto"></div>
+        </main>
     </div>
+
+    <!-- Ecrã de Resultado (Modal) -->
+    <div id="result-modal" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center p-4 text-center">
+        <div class="max-w-md w-full">
+            <h2 id="result-message" class="text-4xl font-bold mb-4"></h2>
+            <p id="participant-name" class="text-2xl mb-8"></p>
+            <button id="ok-button" class="w-full bg-white text-black font-bold text-xl py-4 rounded-lg">OK</button>
+        </div>
+    </div>
+
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const loginScreen = document.getElementById('login-screen');
             const validatorScreen = document.getElementById('validator-screen');
             const loginForm = document.getElementById('login-form');
-            const adminPasswordInput = document.getElementById('admin-password');
+            const passwordInput = document.getElementById('password');
+            const loginError = document.getElementById('login-error');
+            const logoutButton = document.getElementById('logout-button');
+            const resultModal = document.getElementById('result-modal');
+            const resultMessage = document.getElementById('result-message');
+            const participantNameEl = document.getElementById('participant-name');
+            const okButton = document.getElementById('ok-button');
 
             let html5QrCode;
+            let audioCtx;
 
-            loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const password = adminPasswordInput.value;
+            function playBeep(success = true) {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
                 
-                try {
-                    // CORRIGIDO: Aponta para o endpoint de login correto
-                    const response = await fetch('/api/admin-login', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ password: password })
-                    });
-                    const data = await response.json();
-                    if (response.ok && data.success) {
-                        sessionStorage.setItem('admin-auth-token', data.token);
-                        loginScreen.classList.add('hidden');
-                        validatorScreen.classList.remove('hidden');
-                        startScanner();
-                    } else {
-                        alert(data.error || 'Senha incorreta.');
-                    }
-                } catch (error) {
-                    alert('Erro ao tentar fazer login.');
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.01);
+
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(success ? 880 : 440, audioCtx.currentTime); // A5 for success, A4 for error
+                
+                oscillator.start(audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.2);
+                oscillator.stop(audioCtx.currentTime + 0.2);
+            }
+
+            function showResult(status, message, participantName = '') {
+                html5QrCode.pause(true); // Pausa o scanner
+                resultMessage.textContent = message;
+                participantNameEl.textContent = participantName;
+                
+                resultModal.classList.remove('hidden', 'bg-green-500', 'bg-red-500', 'bg-yellow-500');
+                
+                switch (status) {
+                    case 'success':
+                        resultModal.classList.add('bg-green-500');
+                        playBeep(true);
+                        break;
+                    case 'already_used':
+                        resultModal.classList.add('bg-yellow-500');
+                        playBeep(false);
+                        break;
+                    default:
+                        resultModal.classList.add('bg-red-500');
+                        playBeep(false);
+                        break;
+                }
+            }
+
+            okButton.addEventListener('click', () => {
+                resultModal.classList.add('hidden');
+                if (html5QrCode && html5QrCode.isScanning) {
+                    html5QrCode.resume();
                 }
             });
 
-            function startScanner() {
-                html5QrCode = new Html5Qrcode("qr-reader");
-                const qrCodeSuccessCallback = (decodedText, decodedResult) => {
-                    handleDecodedText(decodedText);
-                };
-                const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-                html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback);
-            }
-
-            async function handleDecodedText(decodedText) {
-                html5QrCode.pause();
-                const resultContainer = document.getElementById('result-container');
-                resultContainer.textContent = 'A validar...';
-                resultContainer.className = 'mt-6 p-4 rounded-lg text-center font-bold text-lg bg-gray-600 text-white';
-                resultContainer.classList.remove('hidden');
-
+            async function onScanSuccess(decodedText, decodedResult) {
                 try {
                     const response = await fetch('/api/validate-ticket', {
                         method: 'POST',
@@ -107,30 +131,70 @@
                         body: JSON.stringify({ ticketId: decodedText })
                     });
                     const data = await response.json();
-                    
-                    resultContainer.className = `mt-6 p-4 rounded-lg text-center font-bold text-lg status-${data.status}`;
-                    
-                    let message = `<strong>${data.message}</strong>`;
-                    if (data.participantName) {
-                        message += `<br><span class="text-sm font-normal">${data.participantName}</span>`;
-                    }
-                     if (data.ticketType) {
-                        message += `<br><span class="text-sm font-normal">Tipo: ${data.ticketType.toUpperCase()}</span>`;
-                    }
-                    resultContainer.innerHTML = message;
-
+                    showResult(data.status, data.message, data.participantName);
                 } catch (error) {
-                     resultContainer.className = 'mt-6 p-4 rounded-lg text-center font-bold text-lg status-error';
-                     resultContainer.innerHTML = '<strong>ERRO DE CONEXÃO</strong><br><span class="text-sm font-normal">Não foi possível comunicar com o servidor.</span>';
+                    showResult('error', 'Erro de comunicação com o servidor.');
                 }
-
-                setTimeout(() => {
-                    resultContainer.classList.add('hidden');
-                    if(html5QrCode && html5QrCode.getState() === 2) { // 2 = PAUSED
-                       html5QrCode.resume();
-                    }
-                }, 4000); // Mostra o resultado por 4 segundos
             }
+
+            function onScanFailure(error) {
+                // Não faz nada, para evitar logs constantes
+            }
+
+            function startScanner() {
+                loginScreen.classList.add('hidden');
+                validatorScreen.classList.remove('hidden');
+                html5QrCode = new Html5Qrcode("qr-reader");
+                html5QrCode.start(
+                    { facingMode: "environment" },
+                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    onScanSuccess,
+                    onScanFailure
+                ).catch(err => {
+                    alert("Erro ao iniciar a câmara. Por favor, autorize o acesso à câmara.");
+                });
+            }
+
+            if (sessionStorage.getItem('admin-auth-token')) {
+                startScanner();
+            }
+
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                loginError.classList.add('hidden');
+                const password = passwordInput.value;
+                
+                try {
+                    const response = await fetch('/api/admin-login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password })
+                    });
+                    const data = await response.json();
+                    if (response.ok && data.success) {
+                        sessionStorage.setItem('admin-auth-token', data.token);
+                        startScanner();
+                    } else {
+                        throw new Error(data.error || 'Senha inválida');
+                    }
+                } catch (error) {
+                    loginError.textContent = error.message;
+                    loginError.classList.remove('hidden');
+                }
+            });
+
+            logoutButton.addEventListener('click', () => {
+                sessionStorage.removeItem('admin-auth-token');
+                if (html5QrCode) {
+                    html5QrCode.stop().then(() => {
+                        window.location.reload();
+                    }).catch(err => {
+                         window.location.reload();
+                    });
+                } else {
+                    window.location.reload();
+                }
+            });
         });
     </script>
 </body>
