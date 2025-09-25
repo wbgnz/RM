@@ -1,5 +1,5 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldPath } from 'firebase-admin/firestore';
 
 // --- Configuração do Firebase Admin ---
 let db;
@@ -69,26 +69,45 @@ export default async function handler(request, response) {
 
         } else {
             // Lógica de fallback para o formato antigo (apenas inscriptionId)
-            const inscriptionId = ticketId;
-            const inscriptionRef = db.collection('inscriptions').doc(inscriptionId);
+            const inscriptionRef = db.collection('inscriptions').doc(ticketId);
             const inscriptionDoc = await inscriptionRef.get();
 
-            if (!inscriptionDoc.exists) {
-                return response.status(404).json({ status: 'invalid', message: `Bilhete (antigo) não encontrado para o ID: ${inscriptionId}` });
+            if (inscriptionDoc.exists) {
+                const inscriptionData = inscriptionDoc.data();
+                if (inscriptionData.paymentStatus !== 'paid') {
+                     return response.status(403).json({ status: 'not_paid', message: 'Este bilhete não está pago.', participantName: inscriptionData.mainParticipant.name });
+                }
+                if (inscriptionData.isCheckedIn) {
+                    return response.status(409).json({ status: 'already_used', message: `BILHETE (ANTIGO) JÁ UTILIZADO em ${new Date(inscriptionData.checkedInAt).toLocaleString('pt-BR')}.`, participantName: inscriptionData.mainParticipant.name });
+                }
+                await inscriptionRef.update({ isCheckedIn: true, checkedInAt: new Date().toISOString() });
+                return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA (Formato Antigo)', participantName: inscriptionData.mainParticipant.name, ticketType: inscriptionData.ticket_type });
             }
 
-            const inscriptionData = inscriptionDoc.data();
+            // Lógica de fallback para o formato com apenas o ID do bilhete individual
+            const ticketsQuery = db.collectionGroup('tickets').where(FieldPath.documentId(), '==', ticketId);
+            const querySnapshot = await ticketsQuery.get();
+
+            if (!querySnapshot.empty) {
+                const ticketDoc = querySnapshot.docs[0];
+                const ticketData = ticketDoc.data();
+                const ticketRef = ticketDoc.ref;
+
+                const parentInscriptionDoc = await ticketRef.parent.parent.get();
+                if (!parentInscriptionDoc.exists || parentInscriptionDoc.data().paymentStatus !== 'paid') {
+                     return response.status(403).json({ status: 'not_paid', message: 'A compra deste bilhete não foi paga.', participantName: ticketData.participantName });
+                }
+
+                if (ticketData.isCheckedIn) {
+                    return response.status(409).json({ status: 'already_used', message: `BILHETE JÁ UTILIZADO em ${new Date(ticketData.checkedInAt).toLocaleString('pt-BR')}.`, participantName: ticketData.participantName });
+                }
+
+                await ticketRef.update({ isCheckedIn: true, checkedInAt: new Date().toISOString() });
+                return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA', participantName: ticketData.participantName, ticketType: ticketData.ticketType });
+            }
             
-            if (inscriptionData.paymentStatus !== 'paid') {
-                 return response.status(403).json({ status: 'not_paid', message: 'Este bilhete não está pago.', participantName: inscriptionData.mainParticipant.name });
-            }
-
-            if (inscriptionData.isCheckedIn) {
-                return response.status(409).json({ status: 'already_used', message: `BILHETE JÁ UTILIZADO em ${new Date(inscriptionData.checkedInAt).toLocaleString('pt-BR')}.`, participantName: inscriptionData.mainParticipant.name });
-            }
-
-            await inscriptionRef.update({ isCheckedIn: true, checkedInAt: new Date().toISOString() });
-            return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA', participantName: inscriptionData.mainParticipant.name, ticketType: inscriptionData.ticket_type });
+            // Se chegámos aqui, o ID não foi encontrado em nenhum formato.
+            return response.status(404).json({ status: 'invalid', message: `Bilhete não encontrado para o ID: ${ticketId}` });
         }
 
     } catch (error) {
