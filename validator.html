@@ -104,10 +104,10 @@
             async function fetchAndRenderCheckedInList() {
                 checkedInListEl.innerHTML = '<p class="text-center text-gray-500">A carregar lista...</p>';
                 try {
-                    // ATUALIZADO: Chama o endpoint correto
                     const response = await fetch('/api/validate-ticket');
                     if (!response.ok) {
-                        throw new Error('Falha ao carregar a lista de entradas.');
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Falha ao carregar a lista de entradas.');
                     }
                     const checkedInParticipants = await response.json();
                     
@@ -117,13 +117,20 @@
                     } else {
                         checkedInParticipants.forEach(p => {
                             const item = document.createElement('div');
-                            item.className = 'bg-gray-800 p-3 rounded-lg flex justify-between items-center';
+                            const whatsappNumber = p.whatsapp ? p.whatsapp.replace(/\D/g, '') : '';
+                            const whatsappLink = whatsappNumber ? `https://wa.me/55${whatsappNumber}` : '#';
+
+                            item.className = 'bg-gray-800 p-3 rounded-lg flex justify-between items-center space-x-4';
                             item.innerHTML = `
-                                <div>
-                                    <p class="font-semibold text-white">${p.name}</p>
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-semibold text-white truncate">${p.name}</p>
+                                    <p class="text-sm text-gray-400">${p.whatsapp || 'N/A'}</p>
                                     <p class="text-xs text-gray-400 uppercase">${p.type}</p>
                                 </div>
-                                <p class="text-sm text-gray-500">${p.time}</p>
+                                <div class="flex-shrink-0 flex items-center space-x-4">
+                                    <p class="text-sm text-gray-500">${p.time}</p>
+                                    ${whatsappNumber ? `<a href="${whatsappLink}" target="_blank" class="bg-green-600 text-white text-xs font-bold py-2 px-3 rounded-lg hover:bg-green-500 whitespace-nowrap">Conversar</a>` : ''}
+                                </div>
                             `;
                             checkedInListEl.appendChild(item);
                         });
@@ -238,7 +245,6 @@
                 const password = passwordInput.value;
                 
                 try {
-                    // ATUALIZADO: Chama o endpoint de login correto
                     const response = await fetch('/api/admin-login', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
