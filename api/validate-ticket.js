@@ -36,12 +36,14 @@ export default async function handler(request, response) {
             let checkedInList = [];
             querySnapshot.forEach(doc => {
                 const data = doc.data();
-                // Adicionamos o timestamp original para podermos ordenar
-                checkedInList.push({
-                    name: data.participantName,
-                    type: data.ticketType,
-                    checkedInAt: data.checkedInAt // Timestamp completo
-                });
+                // Adiciona apenas se tiver os dados necessários para ordenar e exibir
+                if (data.participantName && data.ticketType && data.checkedInAt) {
+                    checkedInList.push({
+                        name: data.participantName,
+                        type: data.ticketType,
+                        checkedInAt: data.checkedInAt
+                    });
+                }
             });
 
             // Ordena pela data, do mais recente para o mais antigo
@@ -116,10 +118,10 @@ export default async function handler(request, response) {
                          return response.status(403).json({ status: 'not_paid', message: 'Este bilhete não está pago.', participantName: inscriptionData.mainParticipant.name, ticketType: inscriptionData.ticket_type });
                     }
                     if (inscriptionData.isCheckedIn) {
-                        return response.status(409).json({ status: 'already_used', message: `BILHETE (ANTIGO) JÁ UTILIZADO em ${new Date(inscriptionData.checkedInAt).toLocaleString('pt-BR')}.`, participantName: inscriptionData.mainParticipant.name, ticketType: inscriptionData.ticket_type });
+                        return response.status(409).json({ status: 'already_used', message: `BILHETE JÁ UTILIZADO em ${new Date(inscriptionData.checkedInAt).toLocaleString('pt-BR')}.`, participantName: inscriptionData.mainParticipant.name, ticketType: inscriptionData.ticket_type });
                     }
                     await inscriptionRef.update({ isCheckedIn: true, checkedInAt: new Date().toISOString() });
-                    return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA (Formato Antigo)', participantName: inscriptionData.mainParticipant.name, ticketType: inscriptionData.ticket_type });
+                    return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA', participantName: inscriptionData.mainParticipant.name, ticketType: inscriptionData.ticket_type });
                 }
 
                 // Lógica de fallback final: Pesquisa exaustiva
@@ -140,7 +142,7 @@ export default async function handler(request, response) {
                         }
 
                         await ticketRef.update({ isCheckedIn: true, checkedInAt: new Date().toISOString() });
-                        return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA (Compatibilidade)', participantName: ticketData.participantName, ticketType: ticketData.ticketType });
+                        return response.status(200).json({ status: 'success', message: 'ENTRADA VÁLIDA', participantName: ticketData.participantName, ticketType: ticketData.ticketType });
                     }
                 }
                 
