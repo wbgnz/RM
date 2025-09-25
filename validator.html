@@ -147,14 +147,20 @@
                         body: JSON.stringify({ ticketId: decodedText })
                     });
                     
-                    const data = await response.json();
+                    let data;
+                    try {
+                        data = await response.json();
+                    } catch (jsonError) {
+                        console.error("A resposta do servidor não é um JSON válido.", jsonError);
+                        throw new Error("O servidor respondeu com um erro inesperado. Verifique os logs da Vercel.");
+                    }
 
                     if (response.ok) {
                         resultPanel.className = 'result-panel result-success mt-4 p-4 rounded-lg text-center';
                         resultMessage.textContent = data.message;
                         participantName.textContent = `${data.participantName} - ${data.ticketType.toUpperCase()}`;
                     } else {
-                        throw data; // Lança os dados do erro para o catch
+                        throw data;
                     }
                 } catch (errorData) {
                     resultPanel.className = 'result-panel result-error mt-4 p-4 rounded-lg text-center';
