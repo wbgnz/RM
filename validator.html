@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validador de Bilhetes - Resenha Music</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #000;
+            color: #f5f5f7;
+        }
+        #qr-reader {
+            border: 2px solid #4a4a4f;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .result-panel {
+            transition: all 0.3s ease-in-out;
+        }
+        .result-success { background-color: #16a34a; }
+        .result-error { background-color: #dc2626; }
+        .result-pending { background-color: #4a4a4f; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <!-- Ecrã de Login -->
+    <div id="login-screen" class="w-full max-w-sm mx-auto">
+        <div class="bg-[#1c1c1e] p-8 rounded-2xl shadow-lg border border-gray-700">
+            <img src="https://raw.githubusercontent.com/wbgnz/BDIMG/main/resenha.jpeg" alt="Logo Resenha Music" class="h-12 mx-auto mb-6">
+            <h1 class="text-2xl font-bold text-center text-white mb-6">Acesso Restrito</h1>
+            <form id="login-form">
+                <div class="mb-4">
+                    <label for="password" class="block text-sm font-medium text-gray-400 mb-2">Senha</label>
+                    <input type="password" id="password" class="w-full bg-[#333336] border border-[#4a4a4f] text-white p-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0a84ff]">
+                </div>
+                <button type="submit" class="w-full bg-[#0a84ff] text-white font-semibold py-3 rounded-lg hover:bg-[#0077ed] transition-colors">Entrar</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Ecrã do Validador -->
+    <div id="validator-screen" class="hidden w-full max-w-md mx-auto">
+        <div class="bg-[#1c1c1e] p-6 rounded-2xl shadow-lg border border-gray-700">
+            <div class="flex justify-between items-center mb-4">
+                 <h1 class="text-xl font-bold text-white">Validador de Bilhetes</h1>
+                 <button id="logout-button" class="text-sm text-red-500 hover:text-red-400 font-semibold">Sair</button>
+            </div>
+           
+            <div id="qr-reader" class="w-full"></div>
+            
+            <div id="result-panel" class="result-panel result-pending mt-4 p-4 rounded-lg text-center">
+                <p id="result-message" class="font-semibold text-lg text-white">Aponte a câmara para um QR Code</p>
+                <p id="participant-name" class="text-sm text-gray-300"></p>
+            </div>
+
+            <button id="reset-button" class="hidden w-full mt-4 bg-gray-600 text-white font-semibold py-3 rounded-lg hover:bg-gray-500 transition-colors">Ler Próximo Bilhete</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginScreen = document.getElementById('login-screen');
+            const validatorScreen = document.getElementById('validator-screen');
+            const loginForm = document.getElementById('login-form');
+            const logoutButton = document.getElementById('logout-button');
+            const resultPanel = document.getElementById('result-panel');
+            const resultMessage = document.getElementById('result-message');
+            const participantName = document.getElementById('participant-name');
+            const resetButton = document.getElementById('reset-button');
+
+            let html5QrCode;
+
+            // --- Lógica de Autenticação ---
+            function showValidator() {
+                loginScreen.classList.add('hidden');
+                validatorScreen.classList.remove('hidden');
+                startScanner();
+            }
+
+            if (sessionStorage.getItem('admin-auth-token')) {
+                showValidator();
+            }
+
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const password = document.getElementById('password').value;
+                try {
+                    const response = await fetch('/api/admin-login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password })
+                    });
+                    const data = await response.json();
+                    if (response.ok && data.token) {
+                        sessionStorage.setItem('admin-auth-token', data.token);
+                        showValidator();
+                    } else {
+                        throw new Error(data.error || 'Senha incorreta');
+                    }
+                } catch (error) {
+                    alert(`Erro de login: ${error.message}`);
+                }
+            });
+
+            logoutButton.addEventListener('click', () => {
+                sessionStorage.removeItem('admin-auth-token');
+                if(html5QrCode && html5QrCode.isScanning){
+                    html5QrCode.stop();
+                }
+                loginScreen.classList.remove('hidden');
+                validatorScreen.classList.add('hidden');
+            });
+
+            // --- Lógica do Scanner de QR Code ---
+            function startScanner() {
+                html5QrCode = new Html5Qrcode("qr-reader");
+                const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+                
+                html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure)
+                    .catch(err => {
+                        console.error("Não foi possível iniciar o scanner", err);
+                        resultMessage.textContent = "Erro ao iniciar a câmara.";
+                        resultPanel.className = 'result-panel result-error mt-4 p-4 rounded-lg text-center';
+                    });
+            }
+
+            async function onScanSuccess(decodedText, decodedResult) {
+                if (html5QrCode.isScanning) {
+                    await html5QrCode.stop();
+                }
+                
+                resultMessage.textContent = 'A validar...';
+                participantName.textContent = '';
+                resultPanel.className = 'result-panel result-pending mt-4 p-4 rounded-lg text-center';
+
+                try {
+                    const response = await fetch('/api/validate-ticket', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ticketId: decodedText })
+                    });
+                    
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        resultPanel.className = 'result-panel result-success mt-4 p-4 rounded-lg text-center';
+                        resultMessage.textContent = data.message;
+                        participantName.textContent = `${data.participantName} - ${data.ticketType.toUpperCase()}`;
+                    } else {
+                        throw data;
+                    }
+                } catch (errorData) {
+                    resultPanel.className = 'result-panel result-error mt-4 p-4 rounded-lg text-center';
+                    resultMessage.textContent = errorData.message || 'Erro desconhecido.';
+                    participantName.textContent = errorData.participantName || '';
+                } finally {
+                    resetButton.classList.remove('hidden');
+                }
+            }
+
+            function onScanFailure(error) {
+                // Não faz nada em caso de falha, para evitar mensagens de erro constantes
+            }
+            
+            resetButton.addEventListener('click', () => {
+                 resultMessage.textContent = 'Aponte a câmara para um QR Code';
+                 participantName.textContent = '';
+                 resultPanel.className = 'result-panel result-pending mt-4 p-4 rounded-lg text-center';
+                 resetButton.classList.add('hidden');
+                 startScanner();
+            });
+        });
+    </script>
+</body>
+</html>
