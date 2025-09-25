@@ -93,7 +93,7 @@
                     const response = await fetch('/api/admin-login', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ password })
+                        body: JSON.stringify({ password: password })
                     });
                     const data = await response.json();
                     if (response.ok && data.token) {
@@ -110,7 +110,7 @@
             logoutButton.addEventListener('click', () => {
                 sessionStorage.removeItem('admin-auth-token');
                 if(html5QrCode && html5QrCode.isScanning){
-                    html5QrCode.stop();
+                    html5QrCode.stop().catch(err => console.error("Falha ao parar o scanner", err));
                 }
                 loginScreen.classList.remove('hidden');
                 validatorScreen.classList.add('hidden');
@@ -118,7 +118,9 @@
 
             // --- Lógica do Scanner de QR Code ---
             function startScanner() {
-                html5QrCode = new Html5Qrcode("qr-reader");
+                if (!html5QrCode) {
+                    html5QrCode = new Html5Qrcode("qr-reader");
+                }
                 const config = { fps: 10, qrbox: { width: 250, height: 250 } };
                 
                 html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure)
@@ -152,7 +154,7 @@
                         resultMessage.textContent = data.message;
                         participantName.textContent = `${data.participantName} - ${data.ticketType.toUpperCase()}`;
                     } else {
-                        throw data;
+                        throw data; // Lança os dados do erro para o catch
                     }
                 } catch (errorData) {
                     resultPanel.className = 'result-panel result-error mt-4 p-4 rounded-lg text-center';
@@ -178,3 +180,4 @@
     </script>
 </body>
 </html>
+
